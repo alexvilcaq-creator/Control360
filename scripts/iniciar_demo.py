@@ -7,9 +7,7 @@ import os
 from pathlib import Path
 import re
 import secrets
-import subprocess
 import sys
-import time
 
 import MySQLdb
 
@@ -18,9 +16,9 @@ CONFIG_DIR = ROOT / ".control360-demo"
 HOST = "127.0.0.1"
 
 
-def load_config(mode):
+def load_config():
     CONFIG_DIR.mkdir(mode=0o700, exist_ok=True)
-    path = CONFIG_DIR / f"{mode}.json"
+    path = CONFIG_DIR / "native.json"
     if not path.exists():
         config = {
             "database": "control360demo" + secrets.token_hex(4),
@@ -79,47 +77,6 @@ def prepare_native_mysql(config, port):
     demo_connection(config, port).close()
 
 
-def prepare_docker_mysql(config, port):
-    try:
-        subprocess.run(["docker", "info", "--format", "{{.ServerVersion}}"], check=True,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
-    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
-        raise RuntimeError("Abre Docker Desktop y espera a que el motor de Docker esté listo.") from error
-
-    database = config["database"]
-    container = "control360-demo-" + database[-8:]
-    state = subprocess.run(
-        ["docker", "container", "inspect", "--format", "{{.State.Running}}", container],
-        capture_output=True, text=True,
-    )
-    if state.returncode != 0:
-        print("Preparando el contenedor de MySQL. La primera descarga puede tardar.", flush=True)
-        env = {**os.environ, "MYSQL_PASSWORD": config["database_password"]}
-        subprocess.run([
-            "docker", "run", "--detach", "--name", container,
-            "--publish", f"{HOST}:{port}:3306",
-            "--volume", f"{container}-data:/var/lib/mysql",
-            "--env", f"MYSQL_DATABASE={database}",
-            "--env", f"MYSQL_USER={database}",
-            "--env", "MYSQL_PASSWORD",
-            "--env", "MYSQL_RANDOM_ROOT_PASSWORD=yes",
-            "mysql:8.4",
-        ], check=True, env=env, stdout=subprocess.DEVNULL)
-    elif state.stdout.strip() != "true":
-        subprocess.run(["docker", "start", container], check=True, stdout=subprocess.DEVNULL)
-
-    print(f"Esperando a MySQL en el puerto {port}…", flush=True)
-    deadline = time.monotonic() + 90
-    while True:
-        try:
-            demo_connection(config, port).close()
-            return
-        except MySQLdb.OperationalError as error:
-            if time.monotonic() >= deadline:
-                raise RuntimeError(f"MySQL no quedó disponible. Revisa el contenedor {container}.") from error
-            time.sleep(1)
-
-
 def start_django(config, mysql_port, backend_port):
     import django
     from django.core.management import call_command
@@ -160,22 +117,26 @@ def start_django(config, mysql_port, backend_port):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mysql", choices=["native", "docker"])
-    parser.add_argument("--mysql-port", type=int)
+    # Acepta el argumento usado por las instrucciones anteriores.
+    parser.add_argument("mysql", nargs="?", choices=["native"], help=argparse.SUPPRESS)
+    parser.add_argument("--mysql-port", type=int, default=3306)
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
-    mysql_port = args.mysql_port or (3307 if args.mysql == "docker" else 3306)
-    config = load_config(args.mysql)
+    config = load_config()
 
     try:
-        if args.mysql == "docker":
-            prepare_docker_mysql(config, mysql_port)
+        prepare_native_mysql(config, args.mysql_port)
+    except MySQLdb.Error as error:
+        if error.args[0] in (2002, 2003):
+            print(
+                f"MySQL no responde en {HOST}:{args.mysql_port}. Inicia el servicio de MySQL "
+                "de tu equipo y vuelve a ejecutar la demo.",
+                file=sys.stderr,
+            )
         else:
-            prepare_native_mysql(config, mysql_port)
-    except (MySQLdb.Error, subprocess.CalledProcessError, RuntimeError) as error:
-        print(f"No se pudo preparar MySQL: {error}", file=sys.stderr)
+            print(f"No se pudo preparar MySQL: {error}", file=sys.stderr)
         return 1
-    start_django(config, mysql_port, args.port)
+    start_django(config, args.mysql_port, args.port)
     return 0
 
 

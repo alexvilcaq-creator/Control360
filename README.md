@@ -15,20 +15,25 @@ La página de bienvenida es pública. Django valida la sesión, el rol y el alca
 - Python 3.12, Django 5.2, Django REST Framework, `django-cors-headers`, mysqlclient y MySQL 8.4.
 - Node.js 22.12 o posterior, npm, Vite, React, React Router, Tailwind CSS, Lucide y Recharts.
 - En Linux, instala las herramientas de compilación y las cabeceras de Python y MySQL si pip las necesita. En Debian y Ubuntu los paquetes habituales son `build-essential pkg-config python3-dev default-libmysqlclient-dev`.
-- En Windows, usa Python de 64 bits y MySQL Community Server o Docker Desktop. Si pip requiere compilar mysqlclient, instala Visual Studio Build Tools con C++ y MariaDB Connector/C, y consulta la guía de instalación de [mysqlclient](https://pypi.org/project/mysqlclient/).
+- En Windows, usa Python de 64 bits y MySQL Community Server. Si pip requiere compilar mysqlclient, instala Visual Studio Build Tools con C++ y MariaDB Connector/C, y consulta la guía de instalación de [mysqlclient](https://pypi.org/project/mysqlclient/).
 
 ## Probar la demo desde VS Code
 
 Abre la carpeta raíz de Control360 en VS Code. Con Python 3.12, `.venv` y las dependencias de Python instaladas, presiona `Ctrl+Shift+P`, abre **Tareas: Ejecutar tarea** y elige **Control360: Backend demo**.
 
-- **MySQL de mi PC.** Usa el MySQL local en el puerto 3306. La primera vez solicita un usuario administrador de MySQL (normalmente `root`) y su contraseña para crear una base y un usuario exclusivos para la demo.
-- **Docker Desktop.** Con Docker Desktop abierto, prepara otro MySQL en el puerto 3307. Esta opción genera sus credenciales y puede usarse aunque el MySQL local ya esté ocupando el puerto 3306.
+La tarea usa el **servidor MySQL instalado en tu PC**, en el puerto 3306. Verifica que esté iniciado. En Windows puedes comprobarlo desde **Servicios** (`services.msc`). Si es la primera ejecución, la tarea solicita tu cuenta administradora de MySQL (normalmente `root`) y su contraseña para crear una base y un usuario exclusivos para la demo.
 
-La tarea aplica las migraciones, carga los datos ficticios y muestra en su terminal el usuario `demo_admin` y su contraseña local. Los datos de la demo se mantienen entre arranques. La tarea guarda su configuración en `.control360-demo/`, excluida de Git, y deja `.env` intacto.
+La tarea aplica las migraciones, carga los datos ficticios y muestra en su terminal el usuario `demo_admin` y su contraseña local. Los datos de la demo se mantienen entre arranques. La tarea guarda su configuración en `.control360-demo/`, excluida de Git, y conserva el archivo `.env`.
 
-Deja el backend abierto en el puerto 8000. Con el frontend abierto en `http://localhost:5173`, recarga la página e inicia sesión con los datos de la terminal de VS Code. Si también necesitas iniciar React, ejecuta la tarea **Control360: Vite** después de instalar sus dependencias con `npm ci` desde `frontend`.
+Deja el backend abierto en el puerto 8000 y ejecuta la tarea **Control360: Vite** si todavía necesitas iniciar React. Si es tu primera instalación del frontend, ejecuta `npm ci` en `frontend` antes de iniciar Vite. Abre `http://localhost:5173` e inicia sesión con los datos de la terminal de VS Code.
 
-Desde CMD, en la raíz del proyecto y con `.venv` activado, puedes ejecutar la misma tarea escribiendo `python scripts\iniciar_demo.py native` o `python scripts\iniciar_demo.py docker`. Si el puerto 8000 está ocupado por otro Django que iniciaste antes, detén ese proceso con `Ctrl+C` en su terminal.
+Desde CMD, en la raíz del repositorio y con `.venv` activado, puedes iniciar la demo directamente:
+
+```cmd
+python scripts\iniciar_demo.py
+```
+
+Si el puerto 8000 está ocupado por otro Django que iniciaste antes, detén ese proceso con `Ctrl+C` en su terminal.
 
 ## Configurar MySQL y el entorno
 
@@ -58,19 +63,6 @@ Los gráficos agrupan fechas en la zona `America/Bogota`. Carga las tablas de zo
 ```sql
 SELECT CONVERT_TZ('2026-01-01 12:00:00', 'UTC', 'America/Bogota');
 ```
-
-Con Docker en Bash puedes iniciar una instancia local con volumen persistente. Conserva el mismo `.env` para reinicios posteriores del contenedor.
-
-```bash
-export MYSQL_ROOT_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
-docker run -d --name control360-mysql \
-  --env-file <(grep -E '^MYSQL_(DATABASE|USER|PASSWORD)=' .env) -e MYSQL_ROOT_PASSWORD \
-  -p 127.0.0.1:3306:3306 -v control360-mysql-data:/var/lib/mysql mysql:8.4
-unset MYSQL_ROOT_PASSWORD
-docker logs control360-mysql
-```
-
-Espera el mensaje de MySQL que indica que acepta conexiones. En siguientes sesiones inicia el contenedor existente con `docker start control360-mysql`.
 
 ## Instalar y ejecutar
 
