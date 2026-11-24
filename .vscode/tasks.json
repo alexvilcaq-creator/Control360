@@ -2,6 +2,19 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Control360: Backend demo",
+      "type": "process",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "windows": {
+        "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe"
+      },
+      "args": ["scripts/iniciar_demo.py", "${input:control360DemoMysql}"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "reveal": "always" }
+    },
+    {
       "label": "Control360: Django",
       "type": "process",
       "command": "${workspaceFolder}/.venv/bin/python",
@@ -30,6 +43,18 @@
       "dependsOn": ["Control360: Django", "Control360: Vite"],
       "dependsOrder": "parallel",
       "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "control360DemoMysql",
+      "type": "pickString",
+      "description": "¿Dónde debe preparar MySQL la demo de Control360?",
+      "options": [
+        { "label": "MySQL de mi PC (pide la cuenta administradora una vez)", "value": "native" },
+        { "label": "Docker Desktop (crea MySQL en el puerto 3307)", "value": "docker" }
+      ],
+      "default": "native"
     }
   ]
 }

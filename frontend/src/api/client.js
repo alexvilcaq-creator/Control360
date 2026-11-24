@@ -10,7 +10,11 @@ export class ApiError extends Error {
   constructor(status, payload) {
     const fields = payload && typeof payload === 'object'
       ? errorMessages(payload) : []
-    super(payload?.detail || fields.join(' ') || `La solicitud falló (HTTP ${status}).`)
+    const unavailable = [502, 503, 504].includes(status) || (status === 500 && !payload)
+    const message = unavailable
+      ? 'Django no responde. Si estás en tu PC, inicia el backend de Control360 y vuelve a intentar.'
+      : `La solicitud falló (HTTP ${status}).`
+    super(payload?.detail || fields.join(' ') || message)
     this.status = status
   }
 }

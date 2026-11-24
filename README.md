@@ -17,6 +17,19 @@ La página de bienvenida es pública. Django valida la sesión, el rol y el alca
 - En Linux, instala las herramientas de compilación y las cabeceras de Python y MySQL si pip las necesita. En Debian y Ubuntu los paquetes habituales son `build-essential pkg-config python3-dev default-libmysqlclient-dev`.
 - En Windows, usa Python de 64 bits y MySQL Community Server o Docker Desktop. Si pip requiere compilar mysqlclient, instala Visual Studio Build Tools con C++ y MariaDB Connector/C, y consulta la guía de instalación de [mysqlclient](https://pypi.org/project/mysqlclient/).
 
+## Probar la demo desde VS Code
+
+Abre la carpeta raíz de Control360 en VS Code. Con Python 3.12, `.venv` y las dependencias de Python instaladas, presiona `Ctrl+Shift+P`, abre **Tareas: Ejecutar tarea** y elige **Control360: Backend demo**.
+
+- **MySQL de mi PC.** Usa el MySQL local en el puerto 3306. La primera vez solicita un usuario administrador de MySQL (normalmente `root`) y su contraseña para crear una base y un usuario exclusivos para la demo.
+- **Docker Desktop.** Con Docker Desktop abierto, prepara otro MySQL en el puerto 3307. Esta opción genera sus credenciales y puede usarse aunque el MySQL local ya esté ocupando el puerto 3306.
+
+La tarea aplica las migraciones, carga los datos ficticios y muestra en su terminal el usuario `demo_admin` y su contraseña local. Los datos de la demo se mantienen entre arranques. La tarea guarda su configuración en `.control360-demo/`, excluida de Git, y deja `.env` intacto.
+
+Deja el backend abierto en el puerto 8000. Con el frontend abierto en `http://localhost:5173`, recarga la página e inicia sesión con los datos de la terminal de VS Code. Si también necesitas iniciar React, ejecuta la tarea **Control360: Vite** después de instalar sus dependencias con `npm ci` desde `frontend`.
+
+Desde CMD, en la raíz del proyecto y con `.venv` activado, puedes ejecutar la misma tarea escribiendo `python scripts\iniciar_demo.py native` o `python scripts\iniciar_demo.py docker`. Si el puerto 8000 está ocupado por otro Django que iniciaste antes, detén ese proceso con `Ctrl+C` en su terminal.
+
 ## Configurar MySQL y el entorno
 
 Copia `.env.example` a `.env` en la raíz. En PowerShell utiliza `Copy-Item .env.example .env`. En Bash utiliza `cp .env.example .env` y limita los permisos del archivo a tu cuenta. Genera valores aleatorios distintos para `DJANGO_SECRET_KEY` y `MYSQL_PASSWORD`, por ejemplo con `python -c "import secrets; print(secrets.token_hex(32))"`. Configura `DJANGO_DEBUG=true` en desarrollo local.
