@@ -6,6 +6,9 @@ import Layout from './components/Layout'
 import { Loading } from './components/UI'
 import Catalog from './pages/Catalog'
 import Attendance from './pages/Attendance'
+import Incidents from './pages/Incidents'
+import Payments from './pages/Payments'
+import PointOfSale from './pages/PointOfSale'
 import Notifications from './pages/Notifications'
 import Orders from './pages/Orders'
 import Records from './pages/Records'
@@ -32,12 +35,15 @@ createRoot(document.getElementById('root')).render(
       <Route element={<Layout />}>
         <Route path="/panel" element={<Dashboard />} />
         <Route path="/pedidos" element={<Orders />} />
+        <Route path="/asistencia" element={<Attendance />} />
         <Route path="/notificaciones" element={<Notifications />} />
         <Route element={<Protected roles={['admin', 'warehouse']} />}>
           <Route path="/almacen" element={<Warehouse />} />
-          <Route path="/asistencia" element={<Attendance />} />
+          <Route path="/incidencias" element={<Incidents />} />
         </Route>
         <Route element={<Protected roles={['admin', 'seller']} />}>
+          <Route path="/punto-de-venta" element={<PointOfSale />} />
+          <Route path="/pagos" element={<Payments />} />
           <Route path="/clientes" element={<Records key="customers" resource="customers" />} />
         </Route>
         <Route path="/productos" element={<Catalog key="products" resource="products" />} />

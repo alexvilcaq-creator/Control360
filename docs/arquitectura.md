@@ -7,8 +7,8 @@ flowchart LR
   UI["React y React Router"] --> Client["Cliente API · fetch, sesión y CSRF"]
   Client -->|"JSON · /api/v1"| DRF["Django REST Framework"]
   DRF --> Auth["Autenticación y permisos por rol"]
-  DRF --> Catalog["Clientes, catálogo e inventario"]
-  DRF --> Orders["Pedidos y notificaciones"]
+  DRF --> Catalog["Clientes, catálogo, inventario e incidencias"]
+  DRF --> Orders["Pedidos, pagos y notificaciones"]
   DRF --> Team["Trabajadores, horarios y asistencia"]
   DRF --> Reports["Dashboard, reportes y CSV"]
   Auth --> ORM["Django ORM"]
@@ -30,21 +30,31 @@ erDiagram
   USER ||--o| WORKER : "tiene perfil"
   USER ||--o{ SALES_ORDER : "registra"
   USER ||--o{ ORDER_EVENT : "ejecuta"
+  USER ||--o{ PAYMENT : "registra cobro"
+  USER ||--o{ INCIDENT : "reporta"
+  USER ||--o{ ATTENDANCE_CORRECTION : "justifica"
   USER ||--o{ NOTIFICATION : "recibe"
   USER o|--o{ MOVEMENT : "autoriza"
   CUSTOMER ||--o{ SALES_ORDER : "solicita"
   WORKER o|--o{ SALES_ORDER : "prepara"
+  SALES_ORDER ||--o| PAYMENT : "se cobra"
   SALES_ORDER ||--|{ ORDER_ITEM : "contiene"
   SALES_ORDER ||--|{ ORDER_EVENT : "registra estado"
   SALES_ORDER o|--o{ NOTIFICATION : "origina aviso"
   PRODUCT ||--o{ ORDER_ITEM : "se vende"
   PRODUCT ||--o{ MOVEMENT : "cambia"
+  PRODUCT o|--o{ INCIDENT : "afecta"
+  INCIDENT ||--o{ INCIDENT_EVENT : "se revisa"
   PRODUCT o|--o{ NOTIFICATION : "origina alerta"
   CATEGORY ||--o{ PRODUCT : "clasifica"
   LOCATION ||--o{ PRODUCT : "ubica"
   WORKER ||--o{ SCHEDULE : "recibe"
   SHIFT ||--o{ SCHEDULE : "define"
   SCHEDULE ||--o{ ATTENDANCE : "rige"
+  SCHEDULE ||--o{ ATTENDANCE_REQUEST : "corresponde"
+  WORKER ||--o{ ATTENDANCE_REQUEST : "solicita"
+  ATTENDANCE o|--o{ ATTENDANCE_REQUEST : "confirma"
+  ATTENDANCE ||--o{ ATTENDANCE_CORRECTION : "audita"
   WORKER ||--o{ ATTENDANCE : "registra"
 
   USER {
@@ -66,6 +76,7 @@ erDiagram
   }
   PRODUCT {
     string sku UK
+    string barcode UK
     decimal price
     int stock
     int minimum_stock
@@ -115,6 +126,35 @@ erDiagram
     int extra_minutes
     int approved_overtime
   }
+  PAYMENT {
+    string method
+    string status
+    decimal amount
+    decimal cash_received
+    decimal change
+  }
+  INCIDENT {
+    string kind
+    string description
+    string status
+  }
+  INCIDENT_EVENT {
+    string status
+    string note
+    datetime created_at
+  }
+  ATTENDANCE_REQUEST {
+    string action
+    string status
+    datetime requested_at
+    datetime decided_at
+  }
+  ATTENDANCE_CORRECTION {
+    string reason
+    json before
+    json after
+    datetime created_at
+  }
   MOVEMENT {
     int delta
     int balance
@@ -132,7 +172,8 @@ erDiagram
 ## Reglas de operación
 
 - **Pedidos.** El alta bloquea los productos por ID, valida existencias, guarda precios y cantidades, reserva inventario y registra el historial dentro de una transacción. Una clave única por vendedor permite repetir un alta sin duplicar la reserva. La aceptación bloquea la fila del pedido y comprueba que permanezca pendiente. La misma transición vuelve a evaluar el rol y la asignación con el estado actual. El vendedor puede cancelar sus pendientes y el administrador puede cancelar pedidos anteriores a la entrega. Una cancelación restaura unidades en la misma transacción.
-- **Inventario.** El saldo se cambia por movimientos auditados. La alerta de stock bajo se emite cuando un movimiento cruza el umbral desde arriba. El panel incluye todos los productos activos que estén en el umbral o por debajo.
-- **Asistencia.** La programación se guarda desde fechas efectivas y la marcación persiste el horario previsto. La jornada nocturna pertenece al día en que empieza. El calendario calcula faltas después de la salida prevista para jornadas sin marcación. La tolerancia decide si existe tardanza. Una vez superada, se registra el retraso total. El tiempo contabilizado después de la salida prevista se somete a una aprobación administrativa explícita.
+- **POS.** El lector USB con modo teclado envía un código que Django busca de forma exacta. Checkout registra el pedido, la reserva y el cobro en una transacción. Un cobro por pedido evita duplicados. Tarjeta, Yape y Plin son registros manuales de la demostración.
+- **Inventario.** El saldo se cambia por movimientos auditados. La alerta de stock bajo se emite cuando un movimiento cruza el umbral desde arriba. El panel incluye todos los productos activos que estén en el umbral o por debajo. Los reportes de incidencia tienen su propio historial de revisión, y los ajustes de stock se registran mediante el servicio de movimientos.
+- **Asistencia.** Una solicitud pendiente conserva la hora del servidor y se excluye de las asistencias confirmadas. La revisión guarda administrador, decisión y hora aparte. Una corrección requiere motivo y almacena una auditoría de campos previos y posteriores. La programación se guarda desde fechas efectivas y la marcación persiste el horario previsto. La jornada nocturna pertenece al día en que empieza. El calendario calcula faltas después de la salida prevista para jornadas sin marcación. La tolerancia decide si existe tardanza. Una vez superada, se registra el retraso total. El tiempo contabilizado después de la salida prevista se somete a una aprobación administrativa explícita.
 - **Reportes.** Los pedidos y las líneas se agrupan por fecha de alta. La actividad cuenta pedidos asignados en ese conjunto y cuántos están listos o entregados. La asistencia se agrupa por fecha de jornada. El inventario bajo refleja el saldo actual.
 - **Administración.** Django Admin permite consultar registros auditados. Las acciones que deben crear movimientos, historial o avisos se ejecutan desde los servicios de la API.

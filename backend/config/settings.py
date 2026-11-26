@@ -55,6 +55,9 @@ DATABASES = {"default": {
     "PORT": env.int("MYSQL_PORT", default=3306),
     "OPTIONS": {"charset": "utf8mb4", "init_command": "SET sql_mode='STRICT_TRANS_TABLES'"},
 }}
+if DATABASES["default"]["NAME"].casefold() == "control360_dw":
+    raise ImproperlyConfigured("Usa una base MySQL exclusiva para Control360 de Empresariales.")
+
 AUTH_USER_MODEL = "accounts.User"
 AUTHENTICATION_BACKENDS = [
     "accounts.backends.UsernameOrEmailBackend",

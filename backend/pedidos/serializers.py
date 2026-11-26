@@ -1,7 +1,11 @@
+from decimal import Decimal
+import re
+
 from rest_framework import serializers
 
 from clientes.models import Customer
-from .models import Order, OrderEvent, OrderItem
+from accounts.permissions import role_for
+from .models import Order, OrderEvent, OrderItem, Payment
 from .services import ACTION_LABELS, actions_for, place_order
 
 
@@ -71,6 +75,52 @@ class OrderSerializer(serializers.ModelSerializer):
 class OrderDetailSerializer(OrderSerializer):
     items = OrderItemSerializer(many=True)
     history = EventSerializer(many=True)
+    payment = serializers.SerializerMethodField()
 
     class Meta(OrderSerializer.Meta):
-        fields = [*OrderSerializer.Meta.fields, "items", "history"]
+        fields = [*OrderSerializer.Meta.fields, "items", "history", "payment"]
+
+    def get_payment(self, order):
+        if role_for(self.context["request"].user) == "warehouse":
+            return None
+        payment = getattr(order, "payment", None)
+        return PaymentSerializer(payment).data if payment else None
+
+
+class PaymentInput(serializers.Serializer):
+    method = serializers.ChoiceField(choices=Payment.Method.choices)
+    cash_received = serializers.DecimalField(max_digits=22, decimal_places=2, min_value=Decimal("0"),
+                                            allow_null=True, required=False, default=None)
+    reference = serializers.CharField(max_length=60, allow_blank=True, required=False, default="")
+
+    def validate_reference(self, value):
+        digits = re.sub(r"[\s-]", "", value)
+        if digits.isdecimal() and 13 <= len(digits) <= 19:
+            raise serializers.ValidationError("Usa una referencia interna, como OP-1234.")
+        return value
+
+
+class CheckoutInput(OrderInput):
+    request_key = serializers.UUIDField()
+    payment = PaymentInput()
+
+
+class PaymentSerializer(serializers.ModelSerializer):
+    number = serializers.SerializerMethodField()
+    customer = serializers.CharField(source="order.customer.name", read_only=True)
+    seller = serializers.CharField(source="order.seller.username", read_only=True)
+    cashier_name = serializers.CharField(source="cashier.username", read_only=True)
+    voided_by_name = serializers.CharField(source="voided_by.username", read_only=True, default=None)
+
+    class Meta:
+        model = Payment
+        fields = ["id", "number", "order", "customer", "seller", "cashier_name", "method", "status",
+                  "amount", "cash_received", "change", "reference", "created_at", "voided_at",
+                  "voided_by_name", "void_reason"]
+
+    def get_number(self, payment):
+        return f"C360-{payment.pk:06d}"
+
+
+class PaymentVoidInput(serializers.Serializer):
+    reason = serializers.CharField(max_length=250)

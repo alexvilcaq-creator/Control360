@@ -1,9 +1,8 @@
 from django.utils import timezone
 from rest_framework import serializers
 
-from config.api import Conflict
 from trabajadores.models import Worker
-from .models import Attendance, Schedule, Shift
+from .models import Attendance, AttendanceCorrection, AttendanceRequest, Schedule, Shift
 
 
 class ShiftSerializer(serializers.ModelSerializer):
@@ -70,3 +69,43 @@ class PeriodInput(serializers.Serializer):
         if start.year < 1900 or end.year > 9998 or start > end or (end - start).days >= self.max_days:
             raise serializers.ValidationError(f"Indica un período válido de hasta {self.max_days} días.")
         return {**attrs, "start": start, "end": end}
+
+
+class AttendanceRequestSerializer(serializers.ModelSerializer):
+    worker_name = serializers.CharField(source="worker.__str__", read_only=True)
+    role = serializers.CharField(source="worker.user.role", read_only=True)
+    shift_name = serializers.CharField(source="schedule.shift.name", read_only=True)
+    reviewer = serializers.CharField(source="reviewed_by.username", read_only=True, default=None)
+
+    class Meta:
+        model = AttendanceRequest
+        fields = ["id", "worker", "worker_name", "role", "shift_name", "attendance", "date", "action",
+                  "status", "requested_at", "decided_at", "reviewer", "note"]
+
+
+class PunchInput(serializers.Serializer):
+    action = serializers.ChoiceField(choices=AttendanceRequest.Action.choices)
+
+
+class DecisionInput(serializers.Serializer):
+    decision = serializers.ChoiceField(choices=["approved", "rejected"])
+    note = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
+
+    def validate(self, attrs):
+        if attrs["decision"] == "rejected" and not attrs["note"]:
+            raise serializers.ValidationError({"note": "Explica el motivo del rechazo."})
+        return attrs
+
+
+class CorrectionInput(serializers.Serializer):
+    clock_in = serializers.DateTimeField()
+    clock_out = serializers.DateTimeField(allow_null=True)
+    reason = serializers.CharField(max_length=500)
+
+
+class CorrectionSerializer(serializers.ModelSerializer):
+    actor = serializers.CharField(source="actor.username", read_only=True)
+
+    class Meta:
+        model = AttendanceCorrection
+        fields = ["id", "actor", "reason", "before", "after", "created_at"]

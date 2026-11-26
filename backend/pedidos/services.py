@@ -9,6 +9,7 @@ from notificaciones.services import notify
 from productos.models import Product
 from trabajadores.models import Worker
 from .models import Order, OrderEvent, OrderItem
+from .payments import void_order_payment
 
 Status = Order.Status
 NEXT_STATUS = {
@@ -102,7 +103,7 @@ def _create_order(customer, quantities, actor, request_key):
 
 
 def _assignee(action, actor, worker_id):
-    workers = Worker.objects.select_for_update().select_related("user")
+    workers = Worker.objects.select_for_update().select_related("user").filter(user__role="warehouse", user__is_superuser=False)
     worker = (workers.filter(user=actor).first() if action == "accept" else
               workers.filter(pk=worker_id).first())
     if not worker or not worker.employed_on(timezone.localdate()) or not worker.user.is_active:
@@ -130,6 +131,7 @@ def change_order(*, order_id, action, actor, worker_id=None, note=""):
         for pk, product in locked_products(quantities).items():
             apply_movement(product, delta=quantities[pk], reason=f"Reversa del pedido #{order.pk}", actor=actor)
         order.status = Status.CANCELLED
+        void_order_payment(order, actor, f"Pedido cancelado: {note}")
     else:
         order.status = NEXT_STATUS[previous]
     order.save(update_fields=["status", "assignee", "updated_at"])

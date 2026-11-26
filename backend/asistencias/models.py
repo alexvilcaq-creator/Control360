@@ -54,3 +54,40 @@ class Attendance(models.Model):
             models.CheckConstraint(condition=models.Q(clock_out__isnull=True) |
                                    models.Q(clock_out__gte=models.F("clock_in")), name="attendance_clock_order"),
         ]
+
+
+class AttendanceRequest(models.Model):
+    class Action(models.TextChoices):
+        IN = "in", "Entrada"
+        OUT = "out", "Salida"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pendiente"
+        APPROVED = "approved", "Aprobada"
+        REJECTED = "rejected", "Rechazada"
+
+    worker = models.ForeignKey("trabajadores.Worker", on_delete=models.PROTECT, related_name="punch_requests")
+    schedule = models.ForeignKey(Schedule, on_delete=models.PROTECT)
+    attendance = models.ForeignKey(Attendance, null=True, blank=True, on_delete=models.PROTECT)
+    date = models.DateField()
+    action = models.CharField(max_length=3, choices=Action.choices)
+    status = models.CharField(max_length=8, choices=Status.choices, default=Status.PENDING)
+    requested_at = models.DateTimeField()
+    decided_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.PROTECT)
+    note = models.CharField(max_length=500, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["worker", "status"]), models.Index(fields=["status", "-requested_at"])]
+
+
+class AttendanceCorrection(models.Model):
+    attendance = models.ForeignKey(Attendance, related_name="corrections", on_delete=models.PROTECT)
+    actor = models.ForeignKey("accounts.User", on_delete=models.PROTECT)
+    reason = models.CharField(max_length=500)
+    before = models.JSONField()
+    after = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]

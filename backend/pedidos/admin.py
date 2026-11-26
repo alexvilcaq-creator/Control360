@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from config.admin import AuditAdmin
-from .models import Order, OrderEvent, OrderItem
+from .models import Order, OrderEvent, OrderItem, Payment
 
 
 @admin.register(Order)
@@ -24,3 +24,11 @@ class OrderEventAdmin(AuditAdmin):
     list_filter = ["status", "created_at"]
     search_fields = ["=order_id", "actor__username"]
     list_select_related = ["actor"]
+
+
+@admin.register(Payment)
+class PaymentAdmin(AuditAdmin):
+    list_display = ["id", "order", "cashier", "method", "status", "amount", "created_at"]
+    list_filter = ["method", "status", "created_at"]
+    search_fields = ["=order_id", "reference", "order__customer__name", "cashier__username"]
+    list_select_related = ["order", "cashier"]

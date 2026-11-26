@@ -9,9 +9,14 @@ from rest_framework.response import Response
 from accounts.permissions import RolePermission, role_for
 from config.api import Conflict
 from trabajadores.models import Worker
-from .models import Attendance, Schedule, Shift
-from .serializers import AttendanceSerializer, PeriodInput, ScheduleSerializer, ShiftSerializer
-from .services import approve, attendance_period, clock, employed_workers, scheduled_bounds
+from .models import Attendance, AttendanceRequest, Schedule, Shift
+from .serializers import (
+    AttendanceRequestSerializer, AttendanceSerializer, CorrectionInput, CorrectionSerializer,
+    DecisionInput, PeriodInput, PunchInput, ScheduleSerializer, ShiftSerializer,
+)
+from .services import (
+    approve, attendance_period, attendance_state, correct_attendance, decide_punch, request_punch, scheduled_bounds,
+)
 
 
 class ShiftViewSet(viewsets.ModelViewSet):
@@ -56,25 +61,44 @@ class ScheduleViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.Des
 
 class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [RolePermission]
-    allowed_roles = ["admin", "warehouse"]
-    action_roles = {"punch": ["warehouse"], "overtime": ["admin"]}
+    allowed_roles = ["admin", "seller", "warehouse"]
+    action_roles = {
+        "punch": ["seller", "warehouse"], "state": ["seller", "warehouse"],
+        "overtime": ["admin"], "correct": ["admin"], "corrections": ["admin"],
+    }
     serializer_class = AttendanceSerializer
 
     def get_queryset(self):
         queryset = Attendance.objects.select_related("worker__user", "schedule__shift").order_by("-date", "-pk")
-        if role_for(self.request.user) == "warehouse":
+        if role_for(self.request.user) != "admin":
             queryset = queryset.filter(worker__user=self.request.user)
         return queryset
 
     @action(detail=False, methods=["post"])
     def punch(self, request):
-        class PunchInput(serializers.Serializer):
-            action = serializers.ChoiceField(choices=["in", "out"])
-
         data = PunchInput(data=request.data)
         data.is_valid(raise_exception=True)
-        record = clock(request.user, data.validated_data["action"])
-        return Response(self.get_serializer(record).data, status=201 if data.validated_data["action"] == "in" else 200)
+        record = request_punch(request.user, data.validated_data["action"])
+        return Response(AttendanceRequestSerializer(record).data, status=201)
+
+    @action(detail=False)
+    def state(self, request):
+        worker = Worker.objects.filter(user=request.user).first()
+        if not worker:
+            return Response({"linked": False, "schedule": None, "open": False, "pending": False, "can_request": False})
+        return Response(attendance_state(worker))
+
+    @action(detail=True, methods=["post"])
+    def correct(self, request, pk=None):
+        data = CorrectionInput(data=request.data)
+        data.is_valid(raise_exception=True)
+        entry = correct_attendance(self.get_object(), request.user, **data.validated_data)
+        return Response(self.get_serializer(entry).data)
+
+    @action(detail=True)
+    def corrections(self, request, pk=None):
+        records = self.get_object().corrections.select_related("actor")
+        return self.get_paginated_response(CorrectionSerializer(self.paginate_queryset(records), many=True).data)
 
     @action(detail=True, methods=["post"])
     def overtime(self, request, pk=None):
@@ -97,7 +121,7 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
         start, end = data.validated_data["start"], data.validated_data["end"]
         # Incluye marcaciones existentes aunque después se corrija el vínculo laboral.
         workers = Worker.objects.select_related("user").order_by("pk")
-        if role_for(request.user) == "warehouse":
+        if role_for(request.user) != "admin":
             workers = workers.filter(user=request.user)
         elif data.validated_data.get("worker"):
             workers = workers.filter(pk=data.validated_data["worker"])
@@ -118,3 +142,28 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
         response = paginator.get_paginated_response(paginator.paginate_queryset(rows, request, view=self))
         response.data["days"] = daily
         return response
+
+
+class AttendanceRequestViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [RolePermission]
+    allowed_roles = ["admin", "seller", "warehouse"]
+    action_roles = {"decide": ["admin"]}
+    serializer_class = AttendanceRequestSerializer
+
+    def get_queryset(self):
+        queryset = AttendanceRequest.objects.select_related("worker__user", "schedule__shift", "reviewed_by")
+        if role_for(self.request.user) != "admin":
+            queryset = queryset.filter(worker__user=self.request.user)
+        state = self.request.query_params.get("status")
+        if self.action == "list" and state:
+            if state not in AttendanceRequest.Status.values:
+                raise serializers.ValidationError({"status": "Estado de solicitud inválido."})
+            queryset = queryset.filter(status=state)
+        return queryset.order_by("-requested_at", "-pk")
+
+    @action(detail=True, methods=["post"])
+    def decide(self, request, pk=None):
+        data = DecisionInput(data=request.data)
+        data.is_valid(raise_exception=True)
+        punch = decide_punch(self.get_object(), request.user, **data.validated_data)
+        return Response(self.get_serializer(punch).data)

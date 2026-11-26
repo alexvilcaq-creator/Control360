@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { request } from '../api/client'
 import { catalog } from '../api/catalog'
 import { dateLabel, money, orderActions, orderStatus, post } from '../api/operations'
+import { PaymentFields, paymentBody, paymentMethods, paymentStates } from '../components/Payment'
 import { Empty, Loading, Modal, Notice, PageHeading, Pagination, Status, Toast } from '../components/UI'
 import { useAuth } from '../context/Auth'
 import { useQuery } from '../hooks/useQuery'
@@ -79,6 +80,8 @@ const loadWorkers = signal => catalog.options('workers', signal)
 const noWorkers = async () => []
 
 function OrderDetail({ id, onClose, onChanged }) {
+  const { user } = useAuth()
+  const [showPayment, setShowPayment] = useState(false)
   const [version, setVersion] = useState(0)
   const [choice, setChoice] = useState('')
   const [busy, setBusy] = useState(false)
@@ -108,6 +111,20 @@ function OrderDetail({ id, onClose, onChanged }) {
     } finally { setBusy(false) }
   }
 
+  async function pay(event) {
+    event.preventDefault()
+    const body = paymentBody(new FormData(event.currentTarget))
+    setBusy(true)
+    setError('')
+    try {
+      await post(`/orders/${id}/payment/`, body)
+      setShowPayment(false)
+      setVersion(value => value + 1)
+      onChanged('Cobro registrado.')
+    } catch (error) { setError(error.message) }
+    finally { setBusy(false) }
+  }
+
   return <Modal title={`Pedido #${id}`} onClose={onClose} busy={busy}>
     <div className="modal-body stack">
       <Notice>{error || readError || workers.error}</Notice>
@@ -121,6 +138,16 @@ function OrderDetail({ id, onClose, onChanged }) {
           <div><strong>{item.quantity} × {money.format(item.unit_price)}</strong></div>
         </div>)}
         <strong className="order-total">Total {money.format(data.total)}</strong>
+        {data.payment && <div className="detail-summary"><strong>{data.payment.number} · {paymentMethods[data.payment.method]}</strong>
+          <Status status={data.payment.status === 'paid' ? 'ready' : 'cancelled'}>{paymentStates[data.payment.status]}</Status></div>}
+        {user.role !== 'warehouse' && !data.payment && data.status !== 'cancelled' && <>
+          <button type="button" className="button secondary" disabled={busy} aria-expanded={showPayment}
+            onClick={() => setShowPayment(value => !value)}>{showPayment ? 'Cerrar cobro' : 'Registrar cobro'}</button>
+          {showPayment && <form onSubmit={pay} className="stack">
+            <PaymentFields total={Number(data.total)}/>
+            <button className="button primary" disabled={busy}>{busy ? 'Guardando…' : 'Confirmar cobro'}</button>
+          </form>}
+        </>}
         {data.actions.length > 0 && <form onSubmit={transition} className="stack">
           <div className="heading-actions">
             {data.actions.map(action => <button key={action} type="button" disabled={busy}
@@ -129,7 +156,7 @@ function OrderDetail({ id, onClose, onChanged }) {
           </div>
           {choice === 'assign' && <label>Trabajador<select name="worker_id" required defaultValue="">
             <option value="">Seleccionar</option>
-            {workers.data?.filter(worker => worker.active).map(worker =>
+            {workers.data?.filter(worker => worker.active && worker.role === 'warehouse').map(worker =>
               <option key={worker.id} value={worker.id}>{worker.name}</option>)}
           </select></label>}
           {choice === 'cancel' && <label>Motivo<input name="note" maxLength={200} required /></label>}

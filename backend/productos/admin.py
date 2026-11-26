@@ -20,7 +20,7 @@ class LocationAdmin(admin.ModelAdmin):
 class ProductAdmin(admin.ModelAdmin):
     list_display = ["sku", "name", "category", "location", "price", "stock"]
     list_filter = ["category", "location__zone"]
-    search_fields = ["sku", "name"]
+    search_fields = ["sku", "barcode", "name"]
     readonly_fields = ["stock"]
 
     def save_model(self, request, obj, form, change):

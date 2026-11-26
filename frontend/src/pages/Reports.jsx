@@ -1,9 +1,11 @@
 import { useCallback, useState } from 'react'
 import { Download } from 'lucide-react'
 import { request } from '../api/client'
-import { localDate, query } from '../api/operations'
+import { localDate, money, query } from '../api/operations'
 import { AttendanceChart, OrderDistribution, OrderTrend } from '../components/Charts'
 import { Empty, Loading, Notice, PageHeading } from '../components/UI'
+import { paymentMethods } from '../components/Payment'
+import { incidentStates } from './Incidents'
 import { useQuery } from '../hooks/useQuery'
 
 const metrics = { present: 'Asistencias', absent: 'Faltas', late: 'Tardanzas', overtime: 'Minutos extra aprobados' }
@@ -12,7 +14,7 @@ function ReportTable({ title, rows, columns }) {
   return <section className="panel"><div className="section-heading"><h2>{title}</h2></div>
     {rows.length ? <div className="table-scroll"><table>
       <thead><tr>{columns.map(([key, label]) => <th key={key}>{label}</th>)}</tr></thead>
-      <tbody>{rows.map(row => <tr key={row.product_id ?? row.sku ?? row.worker}>
+      <tbody>{rows.map(row => <tr key={row.product_id ?? row.sku ?? row.worker ?? row.method ?? row.status}>
         {columns.map(([key]) => <td key={key}>{row[key]}</td>)}</tr>)}</tbody>
     </table></div> : <Empty>Sin registros.</Empty>}
   </section>
@@ -63,6 +65,12 @@ export default function Reports() {
         <article className="metric" key={key}><p>{name}</p><strong>{data.attendance[key]}</strong></article>)}</div>
       <div className="chart-grid"><OrderTrend title="Pedidos en el período" data={data.trend}/><OrderDistribution data={data.statuses}/></div>
       <AttendanceChart data={data.attendance_trend}/>
+      <ReportTable title="Cobros por método" rows={data.payments.map(row => ({
+        ...row, method: paymentMethods[row.method], amount: money.format(row.amount),
+      }))} columns={ [['method', 'Método'], ['count', 'Pagados'], ['voided', 'Anulados'], ['amount', 'Total vigente']] }/>
+      <ReportTable title="Incidencias del período" rows={data.incidents.map(row => ({
+        ...row, status: incidentStates[row.status],
+      }))} columns={ [['status', 'Estado actual'], ['count', 'Cantidad']] }/>
       <ReportTable title="Productos más solicitados" rows={data.top_products} columns={ [['sku', 'SKU'], ['name', 'Producto'], ['quantity', 'Unidades']] }/>
       <ReportTable title="Productos con stock bajo actual" rows={data.low_stock} columns={ [['sku', 'SKU'], ['name', 'Producto'], ['stock', 'Stock'], ['minimum_stock', 'Mínimo']] }/>
       <ReportTable title="Actividad de trabajadores" rows={data.workers} columns={ [['name', 'Trabajador'], ['assigned', 'Asignados'], ['ready', 'Listos o entregados']] }/>

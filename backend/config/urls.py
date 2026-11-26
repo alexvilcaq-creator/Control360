@@ -3,24 +3,28 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from accounts import views as auth
-from asistencias.views import AttendanceViewSet, ScheduleViewSet, ShiftViewSet
+from asistencias.views import AttendanceRequestViewSet, AttendanceViewSet, ScheduleViewSet, ShiftViewSet
 from clientes.views import CustomerViewSet
+from inventario.incidents import IncidentViewSet
 from notificaciones.views import NotificationViewSet
-from pedidos.views import OrderViewSet
+from pedidos.views import OrderViewSet, PaymentViewSet
 from productos import views as catalog
 from reportes.views import DashboardView, ReportView
 from trabajadores.views import WorkerViewSet
 
 router = DefaultRouter()
 router.register("categories", catalog.CategoryViewSet)
+router.register("incidents", IncidentViewSet, basename="incident")
 router.register("locations", catalog.LocationViewSet)
 router.register("products", catalog.ProductViewSet)
 router.register("accounts", auth.AccountViewSet)
 router.register("customers", CustomerViewSet)
+router.register("payments", PaymentViewSet, basename="payment")
 router.register("orders", OrderViewSet, basename="order")
 router.register("workers", WorkerViewSet)
 router.register("shifts", ShiftViewSet)
 router.register("schedules", ScheduleViewSet)
+router.register("attendance-requests", AttendanceRequestViewSet, basename="attendance-request")
 router.register("attendance", AttendanceViewSet, basename="attendance")
 router.register("notifications", NotificationViewSet, basename="notification")
 

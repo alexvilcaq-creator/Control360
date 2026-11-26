@@ -39,7 +39,7 @@ class Command(BaseCommand):
             ("C360-DEMO-03", "Cable USB-C", "23900", 3, 5),
         ):
             product, created = Product.objects.get_or_create(sku=sku, defaults={
-                "name": name, "price": Decimal(price), "category": category, "location": location,
+                "name": name, "barcode": "77500000000" + sku[-2:], "price": Decimal(price), "category": category, "location": location,
                 "minimum_stock": minimum,
             })
             if created:
@@ -53,6 +53,11 @@ class Command(BaseCommand):
         shift, _ = Shift.objects.get_or_create(name="Jornada de demostración", defaults={
             "starts_at": time(8), "ends_at": time(17), "workdays": list(range(7)),
         })
+        seller, _ = Worker.objects.get_or_create(user=users["seller"], defaults={
+            "document": "C360-DEMO-VENTAS", "position": "Vendedor", "joined_on": today,
+        })
+        if not seller.schedules.exists() and seller.employed_on(today):
+            Schedule.objects.create(worker=seller, shift=shift, effective_from=today)
         if worker_created:
             Schedule.objects.create(worker=worker, shift=shift, effective_from=worker.joined_on)
             entry = clock(worker.user, "in", now=timezone.make_aware(datetime.combine(yesterday, time(8, 12))))

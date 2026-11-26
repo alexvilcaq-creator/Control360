@@ -24,6 +24,7 @@ class Location(models.Model):
 
 class Product(models.Model):
     sku = models.CharField(max_length=50, unique=True)
+    barcode = models.CharField(max_length=64, unique=True, null=True, blank=True)
     name = models.CharField(max_length=160)
     description = models.TextField(blank=True)
     category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="products")

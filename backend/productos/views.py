@@ -39,7 +39,7 @@ class LocationViewSet(CatalogViewSet):
 class ProductViewSet(CatalogViewSet):
     queryset = Product.objects.select_related("category", "location").order_by("-updated_at", "-pk")
     serializer_class = ProductSerializer
-    search_fields = ["sku", "name", "description", "category__name", "location__zone"]
+    search_fields = ["sku", "barcode", "name", "description", "category__name", "location__zone"]
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -57,9 +57,22 @@ class ProductViewSet(CatalogViewSet):
             queryset = queryset.filter(is_active=active == "true")
         if self.request.query_params.get("stock") == "out":
             queryset = queryset.filter(stock=0)
+        if self.request.query_params.get("stock") == "available":
+            queryset = queryset.filter(stock__gt=0, is_active=True)
         if self.request.query_params.get("stock") == "low":
             queryset = queryset.filter(stock__lte=F("minimum_stock"))
         return queryset
+
+    @action(detail=False)
+    def scan(self, request):
+        code = request.query_params.get("code", "").strip()
+        if not code or len(code) > 64:
+            raise ValidationError({"code": "Ingresa un código de hasta 64 caracteres."})
+        products = self.get_queryset().filter(is_active=True)
+        product = products.filter(barcode=code).first() or products.filter(sku=code).first()
+        if not product:
+            return Response({"detail": "Código sin productos activos asociados."}, status=404)
+        return Response(self.get_serializer(product).data)
 
     @action(detail=True, methods=["post", "get"], url_path="movements")
     def movements(self, request, pk=None):

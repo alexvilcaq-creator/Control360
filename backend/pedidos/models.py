@@ -65,3 +65,43 @@ class OrderEvent(models.Model):
 
     class Meta:
         ordering = ["created_at", "pk"]
+
+
+class Payment(models.Model):
+    class Method(models.TextChoices):
+        CASH = "cash", "Efectivo"
+        CARD = "card", "Tarjeta"
+        YAPE = "yape", "Yape"
+        PLIN = "plin", "Plin"
+
+    class Status(models.TextChoices):
+        PAID = "paid", "Pagado"
+        VOIDED = "voided", "Anulado"
+
+    order = models.OneToOneField(Order, related_name="payment", on_delete=models.PROTECT)
+    cashier = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="payments_received", on_delete=models.PROTECT)
+    method = models.CharField(max_length=8, choices=Method.choices)
+    status = models.CharField(max_length=8, choices=Status.choices, default=Status.PAID)
+    amount = models.DecimalField(max_digits=22, decimal_places=2)
+    cash_received = models.DecimalField(max_digits=22, decimal_places=2, null=True, blank=True)
+    change = models.DecimalField(max_digits=22, decimal_places=2, null=True, blank=True)
+    reference = models.CharField(max_length=60, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    voided_at = models.DateTimeField(null=True, blank=True)
+    voided_by = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="payments_voided",
+                                  null=True, blank=True, on_delete=models.PROTECT)
+    void_reason = models.CharField(max_length=250, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(amount__gte=0), name="payment_nonnegative_amount"),
+            models.CheckConstraint(condition=(
+                models.Q(method="cash", cash_received__isnull=False, change__isnull=False,
+                         cash_received__gte=models.F("amount"), change=models.F("cash_received") - models.F("amount")) |
+                (models.Q(method__in=["card", "yape", "plin"], cash_received__isnull=True, change__isnull=True))
+            ), name="payment_cash_breakdown"),
+            models.CheckConstraint(condition=(
+                models.Q(status="paid", voided_at__isnull=True, voided_by__isnull=True, void_reason="") |
+                (models.Q(status="voided", voided_at__isnull=False, voided_by__isnull=False) & ~models.Q(void_reason=""))
+            ), name="payment_void_audit"),
+        ]

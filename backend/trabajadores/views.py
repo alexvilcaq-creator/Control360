@@ -7,14 +7,15 @@ from .models import Worker
 
 
 class WorkerSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.filter(role="warehouse", is_superuser=False))
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.filter(role__in=["warehouse", "seller"], is_superuser=False))
     name = serializers.CharField(source="__str__", read_only=True)
+    role = serializers.CharField(source="user.role", read_only=True)
     email = serializers.EmailField(source="user.email", read_only=True)
     active = serializers.SerializerMethodField()
 
     class Meta:
         model = Worker
-        fields = ["id", "user", "name", "email", "document", "position", "joined_on", "ended_on", "active"]
+        fields = ["id", "user", "name", "role", "email", "document", "position", "joined_on", "ended_on", "active"]
 
     def get_active(self, worker):
         return worker.employed_on(timezone.localdate()) and worker.user.is_active

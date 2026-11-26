@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Bell, Boxes, CalendarClock, ChartColumn, ClipboardList, ContactRound, LayoutDashboard, LogOut, Map, MapPin, Moon, Shapes, Shield, Sun, Users, Workflow } from 'lucide-react'
+import { AlertTriangle, Barcode, Bell, ReceiptText, Boxes, CalendarClock, ChartColumn, ClipboardList, ContactRound, LayoutDashboard, LogOut, Map, MapPin, Moon, Shapes, Shield, Sun, Users, Workflow } from 'lucide-react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import { request } from '../api/client'
 import { useAuth } from '../context/Auth'
@@ -8,20 +8,29 @@ import { Brand, Notice } from './UI'
 
 export const roles = { admin: 'Administrador', seller: 'Vendedor', warehouse: 'Almacén' }
 
-const links = [
-  ['/panel', 'Resumen', LayoutDashboard],
-  ['/pedidos', 'Pedidos', ClipboardList],
-  ['/productos', 'Productos', Boxes],
-  ['/clientes', 'Clientes', ContactRound, ['admin', 'seller']],
-  ['/almacen', 'Mapa de almacén', Map, ['admin', 'warehouse']],
-  ['/asistencia', 'Asistencia', CalendarClock, ['admin', 'warehouse']],
-  ['/categorias', 'Categorías', Shapes, ['admin']],
-  ['/ubicaciones', 'Ubicaciones', MapPin, ['admin']],
-  ['/cuentas', 'Cuentas', Shield, ['admin']],
-  ['/trabajadores', 'Trabajadores', Users, ['admin']],
-  ['/turnos', 'Turnos', CalendarClock, ['admin']],
-  ['/asignaciones', 'Asignar turnos', Workflow, ['admin']],
-  ['/reportes', 'Reportes', ChartColumn, ['admin']],
+const sections = [
+  ['Operación', [
+    ['/panel', 'Resumen', LayoutDashboard],
+    ['/punto-de-venta', 'Punto de venta', Barcode, ['admin', 'seller']],
+    ['/pedidos', 'Pedidos', ClipboardList],
+    ['/pagos', 'Pagos', ReceiptText, ['admin', 'seller']],
+    ['/clientes', 'Clientes', ContactRound, ['admin', 'seller']],
+  ]],
+  ['Inventario', [
+    ['/productos', 'Productos', Boxes],
+    ['/almacen', 'Mapa de almacén', Map, ['admin', 'warehouse']],
+    ['/incidencias', 'Incidencias', AlertTriangle, ['admin', 'warehouse']],
+    ['/categorias', 'Categorías', Shapes, ['admin']],
+    ['/ubicaciones', 'Ubicaciones', MapPin, ['admin']],
+  ]],
+  ['Equipo', [
+    ['/asistencia', 'Asistencia', CalendarClock],
+    ['/trabajadores', 'Trabajadores', Users, ['admin']],
+    ['/turnos', 'Turnos', CalendarClock, ['admin']],
+    ['/asignaciones', 'Asignar turnos', Workflow, ['admin']],
+    ['/cuentas', 'Cuentas', Shield, ['admin']],
+    ['/reportes', 'Reportes', ChartColumn, ['admin']],
+  ]],
 ]
 
 const loadUnread = signal => request('/notifications/unread/', { signal })
@@ -56,8 +65,13 @@ export default function Layout() {
     <aside>
       <Link to="/panel" aria-label="Panel de Control360"><Brand /></Link>
       <nav aria-label="Panel de gestión">
-        {links.filter(([, , , allowed]) => !allowed || allowed.includes(user.role))
-          .map(([path, title, Icon]) => <NavLink key={path} to={path}><Icon size={18}/>{title}</NavLink>)}
+        {sections.map(([label, links]) => <div className="nav-group" key={label}>
+          <p>{label}</p>
+          {links.filter(([, , , allowed]) => !allowed || allowed.includes(user.role))
+            .map(([path, title, Icon]) => <NavLink key={path} to={path}><Icon size={18}/>
+              {path === '/pagos' && user.role === 'seller' ? 'Historial de ventas' : title}
+            </NavLink>)}
+        </div>)}
       </nav>
     </aside>
     <div className="workspace">

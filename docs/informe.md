@@ -17,9 +17,9 @@ En una tienda con almacén, registrar ventas, existencias y asistencia en herram
 Consulta los [diagramas, modelos y componentes](arquitectura.md), el [contrato REST](api.md) y las [instrucciones de instalación](../README.md).
 
 1. Muestra el mapa de almacén y el saldo inicial de un producto. Inicia sesión como vendedor, registra un cliente y crea un pedido con dos productos.
-2. Abre el panel de almacén, toma el pedido, verifica el pasillo y el estante, e inicia y termina la preparación. Muestra el aviso que llega al vendedor.
+2. En el POS, escanea un producto y registra efectivo. Muestra el cambio y el comprobante. Abre el panel de almacén, toma el pedido, verifica el pasillo y el estante, e inicia y termina la preparación. Muestra el aviso que llega al vendedor.
 3. Confirma la entrega como vendedor. Revisa que el stock tenga un movimiento de reserva y que el historial del pedido incluya a los responsables.
-4. Consulta el calendario como administrador y compara tardanza, tiempo adicional y minutos aprobados. Exporta el reporte con un filtro de fechas.
+4. Solicita entrada como vendedor, captura el aviso y aprueba la solicitud como administrador. Compara la hora solicitada y la hora de revisión. Consulta el calendario y compara tardanza, tiempo adicional y minutos aprobados. Exporta el reporte con un filtro de fechas.
 5. Explica las pruebas de concurrencia y la separación entre los permisos del navegador y la autorización de Django.
 
 ## Evidencias para incorporar al informe
@@ -27,10 +27,14 @@ Consulta los [diagramas, modelos y componentes](arquitectura.md), el [contrato R
 | Evidencia | Espacio para el archivo o captura | Qué debe mostrar |
 | --- | --- | --- |
 | Acceso y roles | Pendiente de insertar en el informe | Identidad y alcance de un rol, sin mostrar contraseñas. |
+| POS y cobro | Adjuntar captura del catálogo, el carrito y el comprobante | Código escaneado, total calculado y cambio. |
+| Incidencia | Adjuntar captura del listado con una resolución | Producto, motivo, estado y responsable. |
 | Pedido e inventario | Pendiente de insertar en el informe | Estado, líneas y movimiento de reserva del mismo pedido. |
 | Asistencia | Pendiente de insertar en el informe | Jornada programada, entrada, salida y tiempo adicional. |
 | Reportes | Pendiente de insertar en el informe | Filtro aplicado, gráfico y CSV correspondiente. |
 | Pruebas | Pendiente de insertar en el informe | Salida de `manage.py test`, migraciones y compilación de Vite. |
+
+Para esta actualización, la comparación funcional y visual se hizo con Control360-DW, en particular su POS, comprobantes, accesos rápidos por rol y seguimiento de incidencias. La versión de Empresariales implementa esos flujos con sus módulos de React, API de Django y esquema MySQL propio. Las solicitudes de asistencia requieren una revisión previa de administración.
 
 ## Conclusiones técnicas
 

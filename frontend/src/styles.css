@@ -246,3 +246,34 @@ dialog::backdrop{background:#10162c88}
   .notification-row {grid-template-columns:auto minmax(0,1fr)}
   .notification-row .heading-actions {grid-column:2}
 }
+
+.nav-group{display:grid;gap:4px;margin-bottom:16px}
+.nav-group>p{padding:0 12px 4px;color:#a4aec9;font-size:.71rem;letter-spacing:.09em;text-transform:uppercase;font-weight:700}
+.operation-shortcuts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:12px}
+.operation-shortcuts>a{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:11px 14px;font-size:.87rem}
+.operation-shortcuts>a:hover{border-color:var(--accent);color:var(--accent)}
+.pos-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(320px,1fr);gap:16px;align-items:start}
+.pos-search{display:grid;gap:9px}
+.scan-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
+.pos-products article{display:grid;grid-template-columns:minmax(0,1fr) minmax(100px,auto) auto;align-items:center;gap:10px;padding:11px 14px;border-top:1px solid var(--line)}
+.pos-products article>div:last-of-type{text-align:right}
+.pos-products article small,.pos-products article span,.pos-cart .order-line small{display:block;color:var(--muted);font-size:.76rem}
+.pos-cart h2{display:flex;align-items:center;gap:8px}
+.pos-cart form{padding:0 15px 15px}
+.pos-cart fieldset{min-width:0;border:0}
+.pos-cart .order-total,.cash-change{justify-content:space-between;display:flex;align-items:center;gap:6px}
+.payment-fields{padding:12px;background:var(--panel-bg);border-radius:10px}
+.receipt-heading,.personal-shift{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.receipt-lines{display:grid;grid-template-columns:1fr 1.5fr;gap:5px 10px}
+.receipt-lines dt{color:var(--muted)}
+.receipt-lines dd{text-align:right;overflow-wrap:anywhere}
+.personal-shift{padding:14px;margin-bottom:14px;flex-wrap:wrap}
+@media(max-width:850px){.pos-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:760px){.nav-group{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:0}.nav-group>p{align-self:center;padding:3px}}
+@media(max-width:480px){.scan-form{grid-template-columns:minmax(0,1fr)}}
+@media print{
+  body:has(#receipt-print) *{visibility:hidden}
+  body #receipt-print,body #receipt-print *{visibility:visible;color:#111;background:#fff}
+  body #receipt-print{position:fixed;inset:0 auto auto 0;width:100%;padding:20px}
+  body:has(#receipt-print) dialog{overflow:visible;box-shadow:none;border:0}
+}

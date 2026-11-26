@@ -4,11 +4,15 @@ import { catalog } from '../api/catalog'
 import { request } from '../api/client'
 import { dateLabel, localDate, post, query } from '../api/operations'
 import { Empty, Loading, Modal, Notice, PageHeading, Pagination, Status, Toast } from '../components/UI'
+import { AttendanceCorrection, AttendanceRequests, ShiftCard } from '../components/AttendanceRequests'
+import { usePolling } from '../hooks/usePolling'
 import { useAuth } from '../context/Auth'
 import { useQuery } from '../hooks/useQuery'
 
 const loadWorkers = signal => catalog.options('workers', signal)
 const noWorkers = async () => []
+const noShift = async () => null
+const loadShift = signal => request('/attendance/state/', { signal })
 const statuses = { open: 'Entrada abierta', present: 'Asistencia', absent: 'Falta' }
 
 function monthDates(month) {
@@ -72,47 +76,51 @@ export default function Attendance() {
   const [page, setPage] = useState(1)
   const [version, setVersion] = useState(0)
   const [record, setRecord] = useState(null)
+  const [correction, setCorrection] = useState(null)
   const [busy, setBusy] = useState(false)
   const [operationError, setOperationError] = useState('')
   const [toast, setToast] = useState('')
   const closeToast = useCallback(() => setToast(''), [])
   const workers = useQuery(admin ? loadWorkers : noWorkers)
+  const shift = usePolling(admin ? noShift : loadShift)
   const load = useCallback(async signal => {
     const { start, end } = monthDates(month)
     const path = '/attendance/calendar/'
     const period = query({ start, end, worker, page: day ? 1 : page })
     const list = request(`${path}?${period}`, { signal })
-    const latest = admin ? Promise.resolve(null) : request('/attendance/open/', { signal })
-    const [calendar, detail, recent] = await Promise.all([
-      list, day ? request(`${path}?${query({ start: day, end: day, worker, page })}`, { signal }) : list, latest,
+    const [calendar, detail] = await Promise.all([
+      list, day ? request(`${path}?${query({ start: day, end: day, worker, page })}`, { signal }) : list,
     ])
-    return { calendar: calendar.days, detail, open: recent?.open }
-  }, [day, month, worker, page, admin, version])
-  const { data, loading, error } = useQuery(load)
+    return { calendar: calendar.days, detail }
+  }, [day, month, worker, page, version])
+  const { data, loading, error } = usePolling(load)
 
   function changed(message) {
     setToast(message)
     setVersion(value => value + 1)
+    window.dispatchEvent(new Event('control360:notifications'))
   }
 
   async function punch() {
     setBusy(true)
     setOperationError('')
     try {
-      const action = data.open ? 'out' : 'in'
+      const action = shift.data.open ? 'out' : 'in'
       await post('/attendance/punch/', { action })
-      changed(action === 'out' ? 'Salida registrada.' : 'Entrada registrada.')
+      changed(action === 'out' ? 'Solicitud de salida enviada.' : 'Solicitud de entrada enviada.')
     } catch (error) { setOperationError(error.message) }
     finally { setBusy(false) }
   }
 
   return <>
     <PageHeading title={admin ? 'Asistencia del equipo' : 'Mi asistencia'} description="Consulta jornadas, marcaciones y tiempo adicional.">
-      {!admin && <button className="button primary" disabled={busy || !data} onClick={punch}>
-        {data?.open ? <LogOut size={18}/> : <LogIn size={18}/>} {busy ? 'Registrando…' : data?.open ? 'Registrar salida' : 'Registrar entrada'}
+      {!admin && <button className="button primary" disabled={busy || !shift.data?.can_request} onClick={punch}>
+        {shift.data?.open ? <LogOut size={18}/> : <LogIn size={18}/>} {busy ? 'Enviando…' : shift.data?.open ? 'Solicitar salida' : 'Solicitar entrada'}
       </button>}
     </PageHeading>
-    <Notice>{operationError || error || workers.error}</Notice>
+    <Notice>{operationError || error || workers.error || shift.error}</Notice>
+    {!admin && <ShiftCard state={shift.data}/>}
+    <AttendanceRequests admin={admin} version={version} onChanged={changed}/>
     <section className="panel attendance-panel">
       <div className="toolbar"><label className="field"><span><CalendarDays size={16}/> Mes</span>
         <input aria-label="Mes" type="month" min="1900-01" max="9998-12" value={month} onChange={event => {
@@ -129,7 +137,7 @@ export default function Attendance() {
       {loading && <Loading />}
       {data?.detail.results.length === 0 && <Empty>No hay marcaciones ni faltas en la selección.</Empty>}
       {!!data?.detail.results.length && <div className="table-scroll"><table>
-        <thead><tr><th>Fecha</th>{admin && <th>Trabajador</th>}<th>Turno</th><th>Estado</th><th>Entrada</th><th>Salida</th><th>Tardanza</th><th>Adicional</th><th>Aprobado</th></tr></thead>
+        <thead><tr><th>Fecha</th>{admin && <th>Trabajador</th>}<th>Turno</th><th>Estado</th><th>Entrada</th><th>Salida</th><th>Tardanza</th><th>Adicional</th><th>Aprobado</th>{admin && <th>Corrección</th>}</tr></thead>
         <tbody>{data.detail.results.map(row => <tr key={`${row.worker}-${row.date}`}>
           <td>{row.date}</td>{admin && <td>{row.worker_name}</td>}<td>{row.shift_name}</td>
           <td><Status status={row.status}>{statuses[row.status]}</Status></td><td>{dateLabel(row.clock_in)}</td><td>{dateLabel(row.clock_out)}</td>
@@ -137,11 +145,14 @@ export default function Attendance() {
           <td>{admin && row.clock_out && row.extra_minutes > 0
             ? <button className="text-button" onClick={() => setRecord(row)}>{row.approved_overtime} min · Revisar</button>
             : row.approved_overtime ?? '—'}</td>
+          {admin && <td>{row.id && <button className="text-button" onClick={() => setCorrection(row)}>Corregir</button>}</td>}
         </tr>)}</tbody>
       </table></div>}
       <Pagination data={data?.detail} page={page} onChange={setPage} />
     </section>
     {record && <Approval record={record} onClose={() => setRecord(null)} onSaved={message => { setRecord(null); changed(message) }}/>}
+    {correction && <AttendanceCorrection row={correction} onClose={() => setCorrection(null)}
+      onDone={message => { setCorrection(null); changed(message) }}/>}
     <Toast onClose={closeToast}>{toast}</Toast>
   </>
 }

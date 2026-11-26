@@ -1,12 +1,12 @@
 # Control360
 
-Control360 es una aplicación web interna para una tienda con almacén. Conecta las ventas con la preparación y entrega de pedidos, registra los movimientos de inventario y centraliza la programación y asistencia del personal.
+Control360 es una aplicación web interna para una tienda con almacén. Integra el punto de venta, los cobros, la preparación y entrega de pedidos, el control de inventario y la asistencia del personal.
 
 | Rol | Operaciones principales |
 | --- | --- |
-| Administrador | Gestiona catálogo, clientes, pedidos, trabajadores, cuentas y turnos. Revisa asistencia, aprueba tiempo extra y exporta reportes. |
-| Vendedor | Registra clientes y pedidos, consulta existencias y confirma la entrega de sus pedidos listos. |
-| Almacén | Consulta la cola de pedidos, acepta y prepara los que le corresponden, ubica productos y marca entrada y salida. |
+| Administrador | Gestiona usuarios, catálogo, pedidos, trabajadores y turnos. Revisa y corrige asistencias, consulta y anula cobros, resuelve incidencias y exporta reportes. |
+| Vendedor | Usa el POS, escanea productos, registra cobros, consulta sus ventas, confirma entregas y solicita su entrada o salida. |
+| Almacén | Acepta y prepara pedidos, consulta existencias y ubicaciones, reporta incidencias y solicita su entrada o salida. |
 
 La página de bienvenida es pública. Django valida la sesión, el rol y el alcance de cada operación interna. El panel y los gráficos consultan datos de MySQL mediante la API.
 
@@ -23,7 +23,7 @@ Abre la carpeta raíz de Control360 en VS Code. Con Python 3.12, `.venv` y las d
 
 La tarea usa el **servidor MySQL instalado en tu PC**, en el puerto 3306. Verifica que esté iniciado. En Windows puedes comprobarlo desde **Servicios** (`services.msc`). Si es la primera ejecución, la tarea solicita tu cuenta administradora de MySQL (normalmente `root`) y su contraseña para crear una base y un usuario exclusivos para la demo.
 
-La tarea aplica las migraciones, carga los datos ficticios y muestra en su terminal el usuario `demo_admin` y su contraseña local. Los datos de la demo se mantienen entre arranques. La tarea guarda su configuración en `.control360-demo/`, excluida de Git, y conserva el archivo `.env`.
+La tarea aplica las migraciones, carga los datos ficticios y muestra en su terminal las cuentas `demo_admin`, `demo_seller` y `demo_warehouse` con sus contraseñas locales cuando están guardadas en la configuración de la demo. Los datos de la demo se mantienen entre arranques. La tarea guarda su configuración en `.control360-demo/`, excluida de Git, y conserva el archivo `.env`.
 
 Deja el backend abierto en el puerto 8000 y ejecuta la tarea **Control360: Vite** si todavía necesitas iniciar React. Si es tu primera instalación del frontend, ejecuta `npm ci` en `frontend` antes de iniciar Vite. Abre `http://localhost:5173` e inicia sesión con los datos de la terminal de VS Code.
 
@@ -32,6 +32,8 @@ Desde CMD, en la raíz del repositorio y con `.venv` activado, puedes iniciar la
 ```cmd
 python scripts\iniciar_demo.py
 ```
+
+Usa `--mysql-port 3307` si ese es el puerto que confirmaste en tu equipo. Si ya tenías una base de demostración de una versión anterior y te faltan las contraseñas de vendedor y almacén, añade una vez `--reset-staff-passwords`. El parámetro cambia las contraseñas de esas dos cuentas en la base de demostración.
 
 Si el puerto 8000 está ocupado por otro Django que iniciaste antes, detén ese proceso con `Ctrl+C` en su terminal.
 
@@ -48,7 +50,9 @@ Copia `.env.example` a `.env` en la raíz. En PowerShell utiliza `Copy-Item .env
 | `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_HOST`, `MYSQL_PORT` | Credenciales y destino de MySQL. |
 | `VITE_API_URL` | Base HTTP que usa React. El valor de desarrollo predeterminado es `/api/v1`. |
 | `DJANGO_PROXY_TARGET` | Destino del proxy de Vite, por defecto `http://127.0.0.1:8000`. |
-| `VITE_CURRENCY` | Código de moneda mostrado en pantalla, por defecto `COP`. |
+| `VITE_CURRENCY` | Código de moneda mostrado en pantalla, por defecto `COP`. Usa `PEN` si el catálogo ya está expresado en soles. El formato conserva el importe almacenado. |
+
+Usa la base existente de Empresariales (por defecto `control360`) o una base dedicada para esta aplicación. Configura un nombre diferente a `control360_dw`. Las migraciones de esta actualización agregan tablas y el campo de código de barras a los productos existentes.
 
 En un servidor MySQL instalado en tu equipo, conéctate como administrador y crea un usuario específico para la base. Sustituye el valor indicado por la contraseña aleatoria de tu `.env`.
 
@@ -58,7 +62,7 @@ CREATE USER 'control360'@'localhost' IDENTIFIED BY '<contraseña de MYSQL_PASSWO
 GRANT ALL PRIVILEGES ON control360.* TO 'control360'@'localhost';
 ```
 
-Los gráficos agrupan fechas en la zona `America/Bogota`. Carga las tablas de zonas horarias de MySQL si instalaste el servidor manualmente. En Linux se utiliza `mysql_tzinfo_to_sql` con los datos del sistema y en Windows está disponible el paquete oficial importable. Comprueba que la consulta siguiente devuelva una fecha en lugar de `NULL`. [Guía oficial de MySQL](https://dev.mysql.com/doc/refman/8.4/en/time-zone-support.html).
+Los gráficos agrupan fechas en la zona `America/Bogota`. Si las tablas de zonas horarias están disponibles, MySQL agrupa los resultados. Django calcula esa agrupación cuando faltan las tablas. Para cargarlas, en Linux se utiliza `mysql_tzinfo_to_sql` con los datos del sistema y en Windows está disponible el paquete oficial importable. Comprueba que la consulta siguiente devuelva una fecha en lugar de `NULL`. [Guía oficial de MySQL](https://dev.mysql.com/doc/refman/8.4/en/time-zone-support.html).
 
 ```sql
 SELECT CONVERT_TZ('2026-01-01 12:00:00', 'UTC', 'America/Bogota');
@@ -98,11 +102,20 @@ npm run dev
 
 Abre `http://localhost:5173`. En VS Code puedes iniciar ambos servidores con la tarea **Control360: Django y Vite** después de instalar dependencias y aplicar las migraciones.
 
-`create_demo_users` solicita una contraseña por cada cuenta y guarda hashes de Django. Las cuentas son `demo_admin`, `demo_seller` y `demo_warehouse`. En una base de demostración, `create_demo_data` registra un cliente ficticio, tres productos, existencias, pedidos, un turno, una asistencia histórica y su aprobación. Reejecutar el comando conserva los registros de demostración existentes sin duplicar las reservas. Usa `createsuperuser` para el acceso independiente a Django Admin.
+`create_demo_users` solicita una contraseña por cada cuenta y guarda hashes de Django. Las cuentas son `demo_admin`, `demo_seller` y `demo_warehouse`. En una base de demostración, `create_demo_data` registra un cliente ficticio, tres productos, existencias, pedidos, turnos para ventas y almacén, y una asistencia histórica con tiempo extra aprobado. Reejecutar el comando conserva los registros de demostración existentes sin duplicar las reservas. Usa `createsuperuser` para el acceso independiente a Django Admin.
 
 Para desplegar el build de React, sirve `frontend/dist` con fallback a `index.html` y reenvía `/api` a Django mediante HTTPS. También puedes compilar con `VITE_API_URL` para una API de otro origen del mismo sitio y declarar el frontend en `FRONTEND_ORIGINS`. El cliente usa cookies y tokens CSRF.
 
-## Probar
+## Probar los flujos con los tres roles
+
+1. Entra como vendedor y abre **Punto de venta**. Elige un cliente, busca por nombre o SKU, o enfoca **Código de barras** y escanea con un lector que emita teclas y Enter. En una demo nueva puedes usar `7750000000001`. En demos anteriores puedes escanear el SKU `C360-DEMO-01` o asignar un código desde **Productos** como administrador.
+2. Elige efectivo e ingresa un importe suficiente para verificar el cambio en el comprobante. Para tarjeta, Yape o Plin, usa una referencia interna como `OP-1234` y revisa el historial. Cada cobro es un registro manual de demostración. La impresión es un comprobante interno.
+3. Entra como operario de almacén. Acepta el pedido, inicia preparación y márcalo listo. Vuelve a ventas para confirmar la entrega. Verifica el movimiento de reserva de stock en **Productos**. También puedes registrar cobros para pedidos antiguos desde su detalle.
+4. En almacén, filtra **Stock bajo** o **Agotado** y reporta una incidencia en el producto. Como administrador, revisa la notificación y guarda la resolución. Compara las existencias antes y después de reportar la incidencia.
+5. En **Asistencia**, un vendedor u operario con ficha y turno envía una solicitud de entrada. Como administrador, verifica el aviso, revisa las horas y aprueba. Repite con la salida. Una solicitud rechazada requiere motivo. En el historial de administración, **Corregir** exige justificación y deja una auditoría de los cambios.
+6. Usa **Reportes** para consultar las asistencias confirmadas, los cobros por método y las incidencias del período. Exporta CSV y revisa que conserve los totales.
+
+## Pruebas automatizadas
 
 Da al usuario de Django permisos sobre `test_control360` o `test_<MYSQL_DATABASE>`. La suite crea y elimina esa base de pruebas.
 
@@ -126,7 +139,9 @@ npm run build
 ## Comportamiento y alcance
 
 - El alta de un pedido reserva unidades y guarda los precios vigentes. Una cancelación autorizada restaura las unidades. La entrega cierra el pedido sin un segundo descuento. React conserva una clave de solicitud al reintentar el alta.
-- Un trabajador puede tener una jornada abierta y una marcación por fecha laboral. El turno del día se toma de la asignación vigente y puede cruzar medianoche.
+- Un empleado puede tener una solicitud pendiente y una jornada abierta. Al aprobar se usa la hora solicitada para calcular las marcaciones y se guarda por separado la hora de la decisión. Los turnos pueden cruzar medianoche y las asistencias históricas siguen disponibles.
+- El pago toma el total guardado del pedido. La reserva y el cobro desde POS se procesan juntos y comparten la clave de reintento. Anular un cobro conserva su historial, y cancelar el pedido también repone sus unidades.
+- Una incidencia registra observaciones y revisiones. Cualquier ajuste de stock se realiza como movimiento administrativo.
 - Las faltas se calculan al cerrar el horario programado. El tiempo adicional se registra en minutos después de la hora programada de salida y la aprobación requiere una acción administrativa.
 - El reporte de stock bajo muestra las existencias actuales. Los otros reportes admiten períodos. Los avisos del navegador se actualizan mediante consultas periódicas.
 - Este alcance usa días laborales semanales. Festivos, licencias, nómina, múltiples tramos de turno en el mismo día y conciliación de marcaciones omitidas requieren reglas adicionales.

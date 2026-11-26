@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Clock3, Pencil, Plus, Search, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { catalog } from '../api/catalog'
 import { useAuth } from '../context/Auth'
@@ -9,6 +10,7 @@ const catalogConfig = {
   products: {
     title: 'Productos', singular: 'producto', description: 'Consulta existencias, precios y ubicaciones por SKU.',
     fields: [
+      ['barcode', 'Código de barras', { maxLength: 64 }],
       ['sku', 'SKU', { maxLength: 50 }], ['name', 'Nombre', { maxLength: 160 }],
       ['category', 'Categoría'], ['location', 'Ubicación'],
       ['price', 'Precio', { type: 'number', min: 0, step: '0.01' }],
@@ -48,7 +50,7 @@ function EditForm({ config, item, options, onSubmit }) {
           <option value="">Seleccionar</option>
           <Options values={options?.[name]} labelKey={name === 'category' ? 'name' : 'label'} />
         </select> : name === 'description' ? <textarea id={`catalog-${name}`} name={name} defaultValue={defaultValue} rows={3} />
-          : <input id={`catalog-${name}`} name={name} defaultValue={defaultValue} required {...attributes} />}
+          : <input id={`catalog-${name}`} name={name} defaultValue={defaultValue} required={name !== 'barcode'} {...attributes} />}
       </div>
     })}
   </form>
@@ -77,7 +79,8 @@ export default function Catalog({ resource }) {
   const config = catalogConfig[resource]
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
-  const [stock, setStock] = useState('')
+  const [params] = useSearchParams()
+  const [stock, setStock] = useState(() => params.get('stock') || '')
   const [active, setActive] = useState('')
   const [page, setPage] = useState(1)
   const [version, setVersion] = useState(0)
@@ -145,7 +148,7 @@ export default function Catalog({ resource }) {
             <option value="">Todas las categorías</option><Options values={options.data?.category} labelKey="name" />
           </select>
           <select aria-label="Filtrar por stock" value={stock} onChange={event => { setStock(event.target.value); setPage(1) }}>
-            <option value="">Todas las existencias</option><option value="low">Stock bajo</option><option value="out">Agotado</option>
+            <option value="">Todas las existencias</option><option value="low">Stock bajo</option><option value="out">Agotado</option><option value="available">Disponibles</option>
           </select>
           {admin && <select aria-label="Filtrar por disponibilidad" value={active} onChange={event => { setActive(event.target.value); setPage(1) }}>
             <option value="">Todos los productos</option><option value="true">Activos</option><option value="false">Desactivados</option>
@@ -161,7 +164,7 @@ export default function Catalog({ resource }) {
           {(admin || products) && <th>Acciones</th>}
         </tr></thead>
         <tbody>{data.results.map(item => <tr key={item.id}>
-          {products ? <><td><strong>{item.name}</strong><small>{item.sku}{!item.is_active && ' · Desactivado'}</small>{item.description && <small>{item.description}</small>}</td>
+          {products ? <><td><strong>{item.name}</strong><small>{item.sku}{item.barcode && ` · ${item.barcode}`}{!item.is_active && ' · Desactivado'}</small>{item.description && <small>{item.description}</small>}</td>
             <td>{item.category_name}</td><td>{item.location_label}</td><td>{priceFormat.format(item.price)}</td>
             <td><span className={item.stock <= item.minimum_stock ? 'pill low' : 'pill'}>{item.stock} disponibles</span><small>Mínimo {item.minimum_stock}</small></td></>
             : config.fields.map(([name]) => <td key={name}>{item[name]}</td>)}

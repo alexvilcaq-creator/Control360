@@ -24,7 +24,7 @@ export default function Notifications() {
   }
 
   return <>
-    <PageHeading title="Notificaciones" description="Cambios de pedidos y niveles de inventario que requieren atención.">
+    <PageHeading title="Notificaciones" description="Avisos de pedidos, asistencia e inventario.">
       <button className="button secondary" disabled={busy || !data?.count} onClick={() => read()}>
         <CheckCheck size={18}/> Marcar todas como leídas
       </button>
@@ -35,7 +35,8 @@ export default function Notifications() {
       {data?.results.length === 0 && <Empty>Por ahora no hay notificaciones.</Empty>}
       {data?.results.map(row => {
         const Icon = row.kind === 'low_stock' ? CircleAlert : row.kind === 'new_order' ? Bell : PackageCheck
-        const target = row.order ? `/pedidos?pedido=${row.order}` :
+        const target = row.kind.startsWith('attendance_') ? '/asistencia' :
+          row.kind.startsWith('incident_') ? '/incidencias' : row.order ? `/pedidos?pedido=${row.order}` :
           row.product ? '/productos' : ''
         return <article className={`notification-row ${row.read_at ? '' : 'unread'}`} key={row.id}>
           <span className="tile-icon"><Icon size={20}/></span><div><strong>{row.message}</strong><small>{dateLabel(row.created_at)}</small></div>

@@ -32,11 +32,11 @@ const modules = {
   workers: {
     title: 'Trabajadores', singular: 'trabajador', description: 'Administra perfiles de almacén vinculados a cuentas del sistema.',
     fields: [
-      field('user', 'Cuenta de almacén', { source: 'accounts', optionLabel: 'username', immutable: true, filter: row => row.role === 'warehouse' }),
+      field('user', 'Cuenta del trabajador', { source: 'accounts', optionLabel: 'username', immutable: true, filter: row => ['warehouse', 'seller'].includes(row.role) }),
       field('document', 'Documento', { max: 35 }), field('position', 'Cargo', { max: 120 }),
       field('joined_on', 'Fecha de ingreso', { type: 'date', today: true }), field('ended_on', 'Fecha de salida laboral', { type: 'date', optional: true }),
     ],
-    columns: [['name', 'Trabajador'], ['email', 'Correo'], ['document', 'Documento'], ['position', 'Cargo'],
+    columns: [['name', 'Trabajador'], ['role', 'Rol', value => roles[value]], ['email', 'Correo'], ['document', 'Documento'], ['position', 'Cargo'],
       ['joined_on', 'Desde'], ['ended_on', 'Hasta'], ['active', 'Estado', yes]],
   },
   shifts: {

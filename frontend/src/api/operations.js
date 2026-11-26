@@ -14,6 +14,10 @@ export const dateLabel = value => value ? new Date(value).toLocaleString('es-CO'
   dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Bogota',
 }) : '—'
 
+export const exactDateLabel = value => value ? new Date(value).toLocaleString('es-CO', {
+  dateStyle: 'short', timeStyle: 'medium', timeZone: 'America/Bogota',
+}) : '—'
+
 export const money = new Intl.NumberFormat('es-CO', {
   style: 'currency', currency: import.meta.env.VITE_CURRENCY || 'COP',
 })

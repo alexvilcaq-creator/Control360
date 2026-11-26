@@ -2,6 +2,7 @@ import csv
 from collections import Counter, defaultdict
 from datetime import datetime, time, timedelta
 
+from django.db import connections
 from django.db.models import Count, F, Q, Sum
 from django.db.models.functions import TruncDate, TruncMonth, TruncWeek
 from django.http import HttpResponse
@@ -11,10 +12,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import RolePermission, role_for
-from asistencias.models import Attendance
+from asistencias.models import Attendance, AttendanceRequest
 from asistencias.serializers import PeriodInput
 from asistencias.services import attendance_period
-from pedidos.models import Order, OrderItem
+from inventario.models import InventoryIncident
+from pedidos.models import Order, OrderItem, Payment
 from pedidos.serializers import OrderSerializer
 from pedidos.views import visible_orders
 from productos.models import Product
@@ -35,15 +37,27 @@ def distribution(orders):
     return [{"status": status, "count": counts.get(status, 0)} for status in Order.Status.values]
 
 
-def timeline(orders, start, end, group="day"):
-    trunc = {"day": TruncDate, "week": TruncWeek, "month": TruncMonth}[group]
-    raw = orders.order_by().annotate(bucket=trunc("created_at")).values("bucket").annotate(count=Count("pk"))
-    counts = {(item["bucket"].date() if isinstance(item["bucket"], datetime) else item["bucket"]): item["count"]
-              for item in raw}
+def _bucket_date(date, group):
     if group == "week":
-        start -= timedelta(days=start.weekday())
+        return date - timedelta(days=date.weekday())
     if group == "month":
-        start = start.replace(day=1)
+        return date.replace(day=1)
+    return date
+
+
+def timeline(orders, start, end, group="day"):
+    if connections[orders.db].features.has_zoneinfo_database:
+        trunc = {"day": TruncDate, "week": TruncWeek, "month": TruncMonth}[group]
+        buckets = orders.order_by().annotate(bucket=trunc("created_at")).values("bucket").annotate(count=Count("pk"))
+        counts = {
+            (row["bucket"].date() if isinstance(row["bucket"], datetime) else row["bucket"]): row["count"]
+            for row in buckets
+        }
+    else:
+        # Las instalaciones locales de MySQL pueden omitir las tablas de zonas horarias.
+        dates = orders.order_by().values_list("created_at", flat=True).iterator(chunk_size=2000)
+        counts = Counter(_bucket_date(timezone.localdate(stamp), group) for stamp in dates)
+    start = _bucket_date(start, group)
     result = []
     while start <= end:
         result.append({"date": start.isoformat(), "count": counts.get(start, 0)})
@@ -81,12 +95,21 @@ class DashboardView(APIView):
                 many=True, context={"request": request},
             ).data,
         }
+        if role in ("admin", "seller"):
+            payments = Payment.objects.filter(order__in=orders, status=Payment.Status.PAID)
+            data["paid_today"] = str(ordered_between(payments, today, today).aggregate(total=Sum("amount", default=0))["total"])
+        if role in ("admin", "warehouse"):
+            incidents = InventoryIncident.objects.exclude(status=InventoryIncident.Status.RESOLVED)
+            if role == "warehouse":
+                incidents = incidents.filter(reporter=request.user)
+            data["open_incidents"] = incidents.count()
         if role == "admin":
             today_rows = Attendance.objects.filter(date=today)
             data.update(
                 present=Attendance.objects.filter(
                     clock_out__isnull=True, expected_out__gte=timezone.make_aware(datetime.combine(today, time.min)),
                 ).count(),
+                pending_attendance=AttendanceRequest.objects.filter(status=AttendanceRequest.Status.PENDING).count(),
                 late=today_rows.filter(late_minutes__gt=0).count(),
                 overtime=today_rows.aggregate(total=Sum("approved_overtime", default=0))["total"],
                 alerts=list(low_stock().order_by("stock", "pk").values("sku", "name", "stock", "minimum_stock")[:5]),
@@ -134,7 +157,17 @@ def attendance_metrics(start, end):
 def report_data(start, end, group):
     orders = ordered_between(Order.objects.all(), start, end)
     attendance, attendance_trend = attendance_metrics(start, end)
+    payments = ordered_between(Payment.objects.all(), start, end).order_by()
+    payment_rows = payments.values("method").annotate(
+        count=Count("pk", filter=Q(status=Payment.Status.PAID)),
+        voided=Count("pk", filter=Q(status=Payment.Status.VOIDED)),
+        amount=Sum("amount", filter=Q(status=Payment.Status.PAID), default=0),
+    ).order_by("method")
+    incidents = ordered_between(InventoryIncident.objects.all(), start, end).order_by()
+    incident_rows = incidents.values("status").annotate(count=Count("pk")).order_by("status")
     return {
+        "payments": [{**row, "amount": str(row["amount"])} for row in payment_rows],
+        "incidents": list(incident_rows),
         "trend": timeline(orders, start, end, group), "statuses": distribution(orders),
         "top_products": list(OrderItem.objects.filter(order__in=orders.exclude(status=Order.Status.CANCELLED))
                              .values("product_id").annotate(
@@ -174,6 +207,11 @@ class ReportView(APIView):
                 for key, value in row.items():
                     if key not in (label, "worker", "product_id") and isinstance(value, int):
                         writer.writerow([section, name, key, value])
+        for row in data["payments"]:
+            for key in ("count", "voided", "amount"):
+                writer.writerow(["payments", row["method"], key, row[key]])
+        for row in data["incidents"]:
+            writer.writerow(["incidents", row["status"], "count", row["count"]])
         for key, value in data["attendance"].items():
             writer.writerow(["attendance", "Total", key, value])
         return response
