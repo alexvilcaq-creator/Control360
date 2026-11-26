@@ -1,23 +1,19 @@
 import { useCallback, useState } from 'react'
-import { Download } from 'lucide-react'
+import { AlertTriangle, BarChart3, CalendarDays, Clock3, Download, Package, ShoppingCart, TrendingUp, Users } from 'lucide-react'
 import { request } from '../api/client'
-import { localDate, money, query } from '../api/operations'
-import { AttendanceChart, OrderDistribution, OrderTrend } from '../components/Charts'
-import { Empty, Loading, Notice, PageHeading } from '../components/UI'
+import { localDate, money, orderStatus, query } from '../api/operations'
+import { AttendanceChart } from '../components/Charts'
+import { BarPanel, DateChart } from '../components/ReferenceCharts'
+import { DataTable, Loading, Notice, PageHeading, Section, Tag, TextLink } from '../components/UI'
 import { paymentMethods } from '../components/Payment'
 import { incidentStates } from './Incidents'
 import { useQuery } from '../hooks/useQuery'
 
-const metrics = { present: 'Asistencias', absent: 'Faltas', late: 'Tardanzas', overtime: 'Minutos extra aprobados' }
-
 function ReportTable({ title, rows, columns }) {
-  return <section className="panel"><div className="section-heading"><h2>{title}</h2></div>
-    {rows.length ? <div className="table-scroll"><table>
-      <thead><tr>{columns.map(([key, label]) => <th key={key}>{label}</th>)}</tr></thead>
-      <tbody>{rows.map(row => <tr key={row.product_id ?? row.sku ?? row.worker ?? row.method ?? row.status}>
-        {columns.map(([key]) => <td key={key}>{row[key]}</td>)}</tr>)}</tbody>
-    </table></div> : <Empty>Sin registros.</Empty>}
-  </section>
+  return <Section title={title} className="table-panel">
+    <DataTable rows={rows.map(row => ({ ...row, id: row.worker ?? row.method ?? row.status }))}
+      columns={columns.map(([key, label]) => ({ key, label }))} empty="Sin registros."/>
+  </Section>
 }
 
 export default function Reports() {
@@ -44,7 +40,7 @@ export default function Reports() {
   }
 
   return <>
-    <PageHeading title="Reportes" description="Analiza pedidos, actividad de almacén y asistencia por período.">
+    <PageHeading title="Reportes" description="Analiza pedidos, existencias y asistencia del equipo.">
       <button className="button primary" disabled={busy || !data} onClick={download}><Download size={18}/> {busy ? 'Exportando…' : 'Exportar CSV'}</button>
     </PageHeading>
     <form className="toolbar panel module-toolbar" onSubmit={event => {
@@ -61,9 +57,42 @@ export default function Reports() {
     <Notice>{error || downloadError}</Notice>
     {loading && <Loading />}
     {data && <div className="dashboard-stack">
-      <div className="metrics-grid">{Object.entries(metrics).map(([key, name]) =>
-        <article className="metric" key={key}><p>{name}</p><strong>{data.attendance[key]}</strong></article>)}</div>
-      <div className="chart-grid"><OrderTrend title="Pedidos en el período" data={data.trend}/><OrderDistribution data={data.statuses}/></div>
+      <div className="mini-metrics">
+        <div><ShoppingCart size={21}/><span>Pedidos en el período</span><strong>{data.trend.reduce((sum, item) => sum + item.count, 0)}</strong></div>
+        <div><Users size={21}/><span>Trabajadores activos</span><strong>{data.active_workers}</strong></div>
+        <div><AlertTriangle size={21}/><span>Productos con stock bajo</span><strong>{data.low_stock.length}</strong></div>
+        <div><Clock3 size={21}/><span>Tiempo extra aprobado</span><strong>{data.attendance.overtime} min</strong></div>
+      </div>
+      <div className="report-grid">
+        <Section title="Pedidos por fecha" icon={TrendingUp}>
+          <DateChart data={data.trend.map(row => ({ name: row.date, value: row.count }))}/>
+        </Section>
+        <Section title="Pedidos por estado" icon={BarChart3}>
+          <BarPanel data={data.statuses.map(row => ({ name: orderStatus[row.status], value: row.count }))}
+            unit="pedidos" height={245} horizontal/>
+        </Section>
+        <Section title="Productos más solicitados" icon={Package}>
+          <BarPanel data={data.top_products.map(row => ({ name: row.sku, value: row.quantity }))} height={250} horizontal/>
+          {data.top_products.length > 0 && <DataTable rows={data.top_products.map(row => ({ ...row, id: row.product_id }))}
+            columns={[{ key: 'sku', label: 'SKU' }, { key: 'name', label: 'Producto' }, { key: 'quantity', label: 'Unidades', align: 'right' }]}/>}
+        </Section>
+        <Section title="Asistencia del período" icon={CalendarDays} action={<TextLink to="/asistencia">Ver historial</TextLink>}>
+          <BarPanel data={[
+            { name: 'Turnos cerrados o marcados', value: data.attendance.present + data.attendance.absent },
+            { name: 'Asistencias', value: data.attendance.present },
+            { name: 'Tardanzas', value: data.attendance.late },
+            { name: 'Faltas', value: data.attendance.absent },
+          ]} unit="registros" height={250} horizontal/>
+        </Section>
+        <Section title="Productos con stock bajo actual" icon={AlertTriangle} className="table-panel report-full"
+          action={<TextLink to="/inventario?stock=low">Ver todos</TextLink>}>
+          <DataTable rows={data.low_stock.map(row => ({ ...row, id: row.sku }))} empty="No hay productos con stock bajo." columns={[
+            { key: 'sku', label: 'SKU' }, { key: 'name', label: 'Producto' },
+            { key: 'minimum_stock', label: 'Mínimo', align: 'right' },
+            { key: 'stock', label: 'Existencia', align: 'right', render: row => <Tag tone="red">{row.stock} u.</Tag> },
+          ]}/>
+        </Section>
+      </div>
       <AttendanceChart data={data.attendance_trend}/>
       <ReportTable title="Cobros por método" rows={data.payments.map(row => ({
         ...row, method: paymentMethods[row.method], amount: money.format(row.amount),
@@ -71,8 +100,6 @@ export default function Reports() {
       <ReportTable title="Incidencias del período" rows={data.incidents.map(row => ({
         ...row, status: incidentStates[row.status],
       }))} columns={ [['status', 'Estado actual'], ['count', 'Cantidad']] }/>
-      <ReportTable title="Productos más solicitados" rows={data.top_products} columns={ [['sku', 'SKU'], ['name', 'Producto'], ['quantity', 'Unidades']] }/>
-      <ReportTable title="Productos con stock bajo actual" rows={data.low_stock} columns={ [['sku', 'SKU'], ['name', 'Producto'], ['stock', 'Stock'], ['minimum_stock', 'Mínimo']] }/>
       <ReportTable title="Actividad de trabajadores" rows={data.workers} columns={ [['name', 'Trabajador'], ['assigned', 'Asignados'], ['ready', 'Listos o entregados']] }/>
     </div>}
   </>

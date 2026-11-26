@@ -81,6 +81,7 @@ def prepare_native_mysql(config, port):
 def prepare_demo_accounts(config, reset_staff_passwords):
     from django.db import transaction
 
+    from accounts.demo import DEMO_STAFF_NAMES
     from accounts.models import User
 
     saved_passwords = config.setdefault("staff_passwords", {})
@@ -97,7 +98,10 @@ def prepare_demo_accounts(config, reset_staff_passwords):
                 if reset_staff_passwords or (account is None and not password):
                     password = saved_passwords[role] = "Demo-" + secrets.token_urlsafe(12)
             if account is None:
-                account = User.objects.create_user(username=username, role=role, password=password)
+                first_name, last_name = DEMO_STAFF_NAMES.get(role, ("", ""))
+                account = User.objects.create_user(
+                    username=username, role=role, password=password, first_name=first_name, last_name=last_name,
+                )
             elif reset_staff_passwords and role != User.Role.ADMIN and account.role == role:
                 account.set_password(password)
                 account.save(update_fields=["password"])

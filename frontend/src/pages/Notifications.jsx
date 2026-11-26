@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { Bell, CheckCheck, CircleAlert, PackageCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { catalog } from '../api/catalog'
-import { dateLabel, post } from '../api/operations'
+import { dateLabel, notificationTarget, post } from '../api/operations'
 import { Empty, Loading, Notice, PageHeading, Pagination } from '../components/UI'
 import { usePolling } from '../hooks/usePolling'
 
@@ -35,9 +35,7 @@ export default function Notifications() {
       {data?.results.length === 0 && <Empty>Por ahora no hay notificaciones.</Empty>}
       {data?.results.map(row => {
         const Icon = row.kind === 'low_stock' ? CircleAlert : row.kind === 'new_order' ? Bell : PackageCheck
-        const target = row.kind.startsWith('attendance_') ? '/asistencia' :
-          row.kind.startsWith('incident_') ? '/incidencias' : row.order ? `/pedidos?pedido=${row.order}` :
-          row.product ? '/productos' : ''
+        const target = notificationTarget(row)
         return <article className={`notification-row ${row.read_at ? '' : 'unread'}`} key={row.id}>
           <span className="tile-icon"><Icon size={20}/></span><div><strong>{row.message}</strong><small>{dateLabel(row.created_at)}</small></div>
           <div className="heading-actions">

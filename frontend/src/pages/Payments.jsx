@@ -1,11 +1,11 @@
 import { useCallback, useState } from 'react'
-import { ReceiptText, Search, XCircle } from 'lucide-react'
+import { CreditCard, ReceiptText, Search, XCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { catalog } from '../api/catalog'
 import { request } from '../api/client'
-import { dateLabel, money, post } from '../api/operations'
+import { dateLabel, money, orderCode, post } from '../api/operations'
 import { paymentMethods, paymentStates, Receipt } from '../components/Payment'
-import { Empty, Loading, Modal, Notice, PageHeading, Pagination, Status } from '../components/UI'
+import { Empty, Loading, Modal, Notice, PageHeading, Pagination, Section, Status } from '../components/UI'
 import { useAuth } from '../context/Auth'
 import { useQuery } from '../hooks/useQuery'
 
@@ -53,14 +53,14 @@ export default function Payments() {
     [search, method, status, page, version])
   const { loading, data, error } = useQuery(load)
   return <>
-    <PageHeading title={user.role === 'admin' ? 'Pagos' : 'Historial de ventas'}
-      description="Consulta los cobros registrados y sus comprobantes.">
+    <PageHeading title="Historial de pagos" description="Consulta los cobros registrados y sus comprobantes internos.">
       <Link className="button primary" to="/punto-de-venta">Punto de venta</Link>
     </PageHeading>
     <Notice>{error}</Notice><Notice success>{message}</Notice>
-    <section className="panel">
-      <div className="toolbar">
-        <label className="search"><Search size={17}/><input type="search" aria-label="Buscar pagos" value={search}
+    <Section title="Pagos registrados" icon={CreditCard} className="table-panel"
+      action={<span className="result-count">{data?.count ?? 0} pagos</span>}>
+      <div className="filters">
+        <label className="input-icon"><Search size={17}/><input type="search" aria-label="Buscar pagos" value={search}
           placeholder="Pedido, cliente o referencia" onChange={event => { setSearch(event.target.value); setPage(1) }}/></label>
         <select aria-label="Método" value={method} onChange={event => { setMethod(event.target.value); setPage(1) }}>
           <option value="">Todos los métodos</option>{Object.entries(paymentMethods).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
@@ -74,7 +74,7 @@ export default function Payments() {
       {!!data?.results.length && <div className="table-scroll"><table>
         <thead><tr><th>Comprobante</th><th>Cliente</th><th>Método</th><th>Estado</th><th>Importe</th><th>Fecha</th><th>Acciones</th></tr></thead>
         <tbody>{data.results.map(row => <tr key={row.id}>
-          <td><strong>{row.number}</strong><small>Pedido #{row.order} · {row.cashier_name}</small></td>
+          <td><strong>{row.number}</strong><small><Link className="table-link" to={`/pedidos?pedido=${row.order}`}>{orderCode(row.order)}</Link> · {row.cashier_name}</small></td>
           <td>{row.customer}</td><td>{paymentMethods[row.method]}</td>
           <td><Status status={row.status === 'paid' ? 'ready' : 'cancelled'}>{paymentStates[row.status]}</Status></td>
           <td>{money.format(row.amount)}</td><td>{dateLabel(row.created_at)}</td>
@@ -85,7 +85,7 @@ export default function Payments() {
         </tr>)}</tbody>
       </table></div>}
       <Pagination data={data} page={page} onChange={setPage}/>
-    </section>
+    </Section>
     {modal?.void && <VoidForm payment={modal.payment} onClose={() => setModal(null)}
       onDone={() => { setModal(null); setPage(1); setVersion(value => value + 1); setMessage('Cobro anulado.') }}/>}
     {modal && !modal.void && <PaymentReceipt payment={modal.payment} onClose={() => setModal(null)}/>}

@@ -2,7 +2,8 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieCh
 import { orderStatus } from '../api/operations'
 import { Empty } from './UI'
 
-const colors = ['#7358ee', '#3085c0', '#d19325', '#1b976e', '#429756', '#c15675']
+const colors = ['var(--chart-1)', 'var(--blue-text)', 'var(--amber-text)', 'var(--chart-2)',
+  'var(--chart-4)', 'var(--red-text)']
 const shortDate = value => value.slice(5)
 const tooltip = { background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 10 }
 

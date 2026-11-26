@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom'
 import { useCallback, useState } from 'react'
 import { AlertTriangle, Plus, Search } from 'lucide-react'
 import { catalog } from '../api/catalog'
@@ -14,7 +15,8 @@ const kinds = {
 const tones = { open: 'pending', review: 'preparing', resolved: 'ready' }
 const loadProducts = signal => catalog.options('products', signal)
 
-function IncidentForm({ onClose, onSaved }) {
+function IncidentForm({ initialProduct, onClose, onSaved }) {
+  const [product, setProduct] = useState(initialProduct)
   const [kind, setKind] = useState('damaged')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -36,7 +38,8 @@ function IncidentForm({ onClose, onSaved }) {
         <label>Tipo<select name="kind" value={kind} onChange={event => setKind(event.target.value)}>
           {Object.entries(kinds).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
         <label htmlFor="incident-product">Producto</label>
-        <select id="incident-product" name="product" defaultValue="" required={kind !== 'other'}>
+        <select id="incident-product" name="product" value={product}
+          onChange={event => setProduct(event.target.value)} required={kind !== 'other'}>
           <option value="">Selecciona un producto</option>
           {products.data?.map(row => <option key={row.id} value={row.id}>{row.name} · {row.sku}</option>)}
         </select>
@@ -87,12 +90,17 @@ export default function Incidents() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [version, setVersion] = useState(0)
-  const [modal, setModal] = useState(null)
+  const [params, setParams] = useSearchParams()
+  const [modal, setModal] = useState(() => params.get('nueva') ? 'create' : null)
   const [message, setMessage] = useState('')
   const load = useCallback(signal => catalog.list('incidents', { status, search, page }, signal), [status, search, page, version])
   const { data, error, loading } = useQuery(load)
+  function closeForm() {
+    setModal(null)
+    if (params.has('nueva')) setParams({}, { replace: true })
+  }
   function saved(text) {
-    setModal(null); setMessage(text); setPage(1); setVersion(value => value + 1)
+    closeForm(); setMessage(text); setPage(1); setVersion(value => value + 1)
     window.dispatchEvent(new Event('control360:notifications'))
   }
   return <>
@@ -117,7 +125,7 @@ export default function Incidents() {
       </table></div>}
       <Pagination data={data} page={page} onChange={setPage}/>
     </section>
-    {modal === 'create' && <IncidentForm onClose={() => setModal(null)} onSaved={saved}/>}
+    {modal === 'create' && <IncidentForm initialProduct={params.get('producto') || ''} onClose={closeForm} onSaved={saved}/>}
     {modal && modal !== 'create' && <IncidentDetail row={modal} admin={user.role === 'admin'} onClose={() => setModal(null)} onSaved={saved}/>}
   </>
 }

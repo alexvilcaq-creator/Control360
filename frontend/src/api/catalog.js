@@ -14,12 +14,12 @@ export const catalog = {
   remove: (resource, id) => request(`/${resource}/${id}/`, { method: 'DELETE' }),
   movements: (id, page, signal) => list(`products/${id}/movements`, { page }, signal),
   adjust: (id, body) => request(`/products/${id}/movements/`, { method: 'POST', body }),
-  async options(resource, signal) {
+  async options(resource, signal, filters = {}) {
     const results = []
     let page = 1
     let response
     do {
-      response = await list(resource, { page }, signal)
+      response = await list(resource, { ...filters, page }, signal)
       results.push(...response.results)
       page += 1
     } while (response.next)

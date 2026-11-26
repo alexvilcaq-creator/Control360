@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
+from accounts.demo import DEMO_STAFF_NAMES
 from accounts.models import User
 
 
@@ -18,7 +19,8 @@ class Command(BaseCommand):
             if User.objects.filter(username=username).exists():
                 self.stdout.write(f"Ya existe {username}.")
                 continue
-            user = User(username=username, role=role)
+            first_name, last_name = DEMO_STAFF_NAMES.get(role, ("", ""))
+            user = User(username=username, role=role, first_name=first_name, last_name=last_name)
             password = getpass.getpass(f"Contraseña para {username} ({label}): ")
             if password != getpass.getpass("Confirma la contraseña: "):
                 raise CommandError("Las contraseñas no coinciden.")

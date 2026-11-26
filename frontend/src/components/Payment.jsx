@@ -32,7 +32,7 @@ export function PaymentFields({ total }) {
 
 export function Receipt({ payment, order, onClose }) {
   return <Modal title="Comprobante interno" onClose={onClose}>
-    <div className="modal-body stack" id="receipt-print">
+    <div className="modal-body stack receipt-print" id="receipt-print">
       <header className="receipt-heading"><div><strong>Control360</strong><p>{payment.number}</p></div>
         <Status status={payment.status === 'paid' ? 'ready' : 'cancelled'}>{paymentStates[payment.status]}</Status></header>
       <dl className="receipt-lines">

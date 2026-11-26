@@ -1,32 +1,84 @@
-import { useState } from 'react'
-import { MapPin } from 'lucide-react'
-import { catalog } from '../api/catalog'
-import { Empty, Loading, Notice, PageHeading } from '../components/UI'
-import { useQuery } from '../hooks/useQuery'
+import { useState } from 'react';
+import { ArrowDownToLine, ArrowUpRight, MapPin, Search, Truck, X, Warehouse as WarehouseIcon } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Empty, ErrorNotice, Loading, PageTitle, Section, Tag, TextLink } from '../components/UI';
+import ProductPhoto from '../components/ProductPhoto';
+import WarehouseRoute from '../components/WarehouseRoute';
+import { useAuth } from '../context/Auth';
+import { catalog } from '../api/catalog';
+import { useQuery } from '../hooks/useQuery';
+import { locationLabel, matchesLocation, normalize, shelfCode } from '../api/operations';
 
-const loadLocations = signal => catalog.options('locations', signal)
+const loadLocations = signal => catalog.options('locations', signal);
+const loadProducts = signal => catalog.options('products', signal, { active: 'true' });
 
 export default function Warehouse() {
-  const [zone, setZone] = useState('')
-  const { data, loading, error } = useQuery(loadLocations)
-  const zones = Object.groupBy(data || [], row => row.zone)
+  const { user } = useAuth();
+  const locations = useQuery(loadLocations);
+  const products = useQuery(loadProducts);
+  const [searchParams, setSearch] = useSearchParams();
+  const [query, setQuery] = useState('');
+  const selected = Number(searchParams.get('ubicacion')) || null;
+  const groups = new Map();
+  const locationById = new Map();
+  for (const item of locations.data || []) {
+    locationById.set(item.id, item);
+    if (!groups.has(item.zone)) groups.set(item.zone, []);
+    groups.get(item.zone).push(item);
+  }
+  const zones = Array.from(groups, ([zone, shelves]) => [
+    zone,
+    [...shelves].sort((a, b) => a.aisle.localeCompare(b.aisle, undefined, { numeric: true })
+      || a.shelf.localeCompare(b.shelf, undefined, { numeric: true })),
+  ]);
+  const search = normalize(query).trim();
+  const counts = new Map();
+  for (const product of products.data || []) {
+    counts.set(product.location, (counts.get(product.location) || 0) + 1);
+  }
+  const locationIds = new Set(search ? (locations.data || []).filter((item) => matchesLocation(item, search)).map((item) => item.id) : []);
+  const matches = (products.data || []).filter((item) => locationIds.has(item.location) || normalize(item.name + ' ' + item.sku).includes(search));
+  const highlightIds = new Set([...locationIds, ...matches.map((item) => item.location)]);
+  const shown = selected ? matches.filter((item) => item.location === selected) : matches;
+  const active = locationById.get(selected);
+  const singleMatch = search && highlightIds.size === 1 ? [...highlightIds][0] : null;
+  const destination = active || locationById.get(singleMatch);
   return <>
-    <PageHeading title="Mapa del almacén" description="Ubica las posiciones registradas por zona, pasillo y estante." />
-    <div className="toolbar panel module-toolbar"><label className="field">Zona
-      <select value={zone} onChange={event => setZone(event.target.value)}>
-        <option value="">Todas las zonas</option>{Object.keys(zones).map(key => <option key={key}>{key}</option>)}
-      </select></label></div>
-    <Notice>{error}</Notice>
-    {loading && <Loading />}
-    {data?.length === 0 && <Empty>Agrega ubicaciones para dibujar el almacén.</Empty>}
-    <div className="warehouse-map">
-      {Object.entries(zones).filter(([key]) => !zone || key === zone).map(([key, locations]) => <section className="panel map-zone" key={key}>
-        <h2><MapPin size={20}/> Zona {key}</h2>
-        {Object.entries(Object.groupBy(locations, row => row.aisle)).map(([aisle, rows]) => <div className="map-aisle" key={aisle}>
-          <strong>Pasillo {aisle}</strong>
-          <div>{rows.map(row => <span key={row.id}>Estante {row.shelf}</span>)}</div>
-        </div>)}
-      </section>)}
+    <PageTitle title="Mapa del almacén" subtitle="Ubica productos y consulta existencias por zona, pasillo y estante.">
+      {user.role === 'admin' && <TextLink to="/ubicaciones">Gestionar ubicaciones</TextLink>}
+    </PageTitle>
+    <ErrorNotice message={locations.error || products.error} />
+    <div className="warehouse-grid">
+      <Section title="Plano de ubicaciones" icon={WarehouseIcon} caption="Busca un producto o selecciona un estante para ver la ruta.">
+        <label className="input-icon map-search"><Search size={17} /><input aria-label="Buscar en el mapa" placeholder="Buscar por producto, SKU o ubicación (B2)" value={query} onChange={(event) => { setQuery(event.target.value); setSearch({}); }} /></label>
+        {destination && <WarehouseRoute destination={destination} zones={zones} />}
+        {locations.loading && !locations.data ? <Loading /> : zones.length ?
+          <div className="warehouse-floor">
+            <div className="map-terminal"><Truck size={21} /> Recepción</div>
+            <div className="warehouse-zones">{zones.map(([zone, cells], index) =>
+              <div className="map-zone" key={zone}><span>Zona {zone}</span><div>
+                {cells.map((item) =>
+                  <button key={item.id} type="button" className={`map-cell ${selected === item.id ? 'selected' : ''} ${search && highlightIds.has(item.id) ? 'matching' : ''}`}
+                    aria-pressed={selected === item.id} aria-current={destination?.id === item.id ? 'location' : undefined} onClick={() => setSearch(selected === item.id ? {} : { ubicacion: item.id })}>
+                    <img src={`/images/rack-${index % 3 + 1}.webp`} alt="" width="78" height="58" loading="lazy" />
+                    <span className="map-cell-info"><strong>{shelfCode(item)}</strong><small>Pasillo {item.aisle}</small></span>
+                    {products.data && <span className="map-cell-count" aria-label={`${counts.get(item.id) || 0} productos`}>{counts.get(item.id) || 0}</span>}
+                  </button>)}
+              </div></div>)}</div>
+            <div className="map-terminal"><ArrowDownToLine size={21} /> Despacho</div>
+          </div> : <Empty>Aún no hay ubicaciones registradas.</Empty>}
+        {search && <div className="map-legend" role="status"><i />{highlightIds.size === 1 ? '1 ubicación coincide con la búsqueda' : `${highlightIds.size} ubicaciones coinciden con la búsqueda`}</div>}
+      </Section>
+      <Section title={active ? `Zona ${active.zone} · Estante ${active.shelf}` : 'Productos en el plano'} icon={MapPin} className="map-product-panel" caption={active ? locationLabel(active) : 'Existencias por ubicación'}
+        action={active && <button type="button" className="icon-button" aria-label="Ver todas las ubicaciones" onClick={() => setSearch({})}><X size={18} /></button>}>
+        {products.loading && !products.data ? <Loading /> : shown.length ? <div className="map-products">
+          {shown.map((item) => <Link key={item.id} to={`/inventario?q=${encodeURIComponent(item.sku)}`}>
+            <ProductPhoto product={item} />
+            <div><strong>{item.name}</strong><small>{locationLabel(locationById.get(item.location))}</small></div>
+            <Tag tone={item.stock <= item.minimum_stock ? 'red' : 'blue'}>{item.stock} u.</Tag><ArrowUpRight size={15} />
+          </Link>)}
+        </div> : <Empty>No hay productos en esta selección.</Empty>}
+      </Section>
     </div>
-  </>
+  </>;
 }

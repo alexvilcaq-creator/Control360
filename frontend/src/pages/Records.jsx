@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom'
 import { useCallback, useMemo, useState } from 'react'
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { catalog } from '../api/catalog'
@@ -19,7 +20,7 @@ const modules = {
     columns: [['name', 'Cliente'], ['document', 'Documento'], ['email', 'Correo'], ['phone', 'Teléfono']],
   },
   accounts: {
-    title: 'Cuentas', singular: 'cuenta', description: 'Crea accesos, asigna roles y desactiva usuarios.',
+    title: 'Usuarios y roles', singular: 'cuenta', description: 'Crea accesos, asigna roles y desactiva usuarios.',
     fields: [field('username', 'Usuario', { max: 150 }), field('first_name', 'Nombres', { optional: true, max: 150 }),
       field('last_name', 'Apellidos', { optional: true, max: 150 }), field('email', 'Correo', { type: 'email', optional: true }),
       field('role', 'Rol', { choices: roles, defaultValue: 'seller' }),
@@ -132,7 +133,8 @@ function RecordForm({ definition, editing, item, onClose, onSaved }) {
 export default function Records({ resource }) {
   const { user } = useAuth()
   const definition = useMemo(() => ({ ...modules[resource], resource }), [resource])
-  const [search, setSearch] = useState('')
+  const [params] = useSearchParams()
+  const [search, setSearch] = useState(() => params.get('q') ?? '')
   const [page, setPage] = useState(1)
   const [version, setVersion] = useState(0)
   const [dialog, setDialog] = useState(null)

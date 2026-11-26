@@ -40,6 +40,8 @@ class ProductViewSet(CatalogViewSet):
     queryset = Product.objects.select_related("category", "location").order_by("-updated_at", "-pk")
     serializer_class = ProductSerializer
     search_fields = ["sku", "barcode", "name", "description", "category__name", "location__zone"]
+    filter_backends = [*CatalogViewSet.filter_backends, filters.OrderingFilter]
+    ordering_fields = ["id"]
 
     def get_queryset(self):
         queryset = super().get_queryset()

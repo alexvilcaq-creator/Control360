@@ -10,6 +10,8 @@ Control360 es una aplicación web interna para una tienda con almacén. Integra 
 
 La página de bienvenida es pública. Django valida la sesión, el rol y el alcance de cada operación interna. El panel y los gráficos consultan datos de MySQL mediante la API.
 
+La interfaz comparte el logotipo, las imágenes, la tipografía Inter y los componentes visuales de Control360-DW. Las dos versiones tienen esquemas MySQL propios. Esta versión usa Django, Django REST Framework y el cliente HTTP de React.
+
 ## Tecnologías y requisitos
 
 - Python 3.12, Django 5.2, Django REST Framework, `django-cors-headers`, mysqlclient y MySQL 8.4.
@@ -20,6 +22,8 @@ La página de bienvenida es pública. Django valida la sesión, el rol y el alca
 ## Probar la demo desde VS Code
 
 Abre la carpeta raíz de Control360 en VS Code. Con Python 3.12, `.venv` y las dependencias de Python instaladas, presiona `Ctrl+Shift+P`, abre **Tareas: Ejecutar tarea** y elige **Control360: Backend demo**.
+
+Si ya tienes Control360 en tu PC, actualiza la copia con `git pull --ff-only origin main` desde la raíz. Reinicia Django y vuelve a ejecutar `npm ci` en `frontend` para instalar la fuente Inter antes de iniciar Vite.
 
 La tarea usa el **servidor MySQL instalado en tu PC**, en el puerto 3306. Verifica que esté iniciado. En Windows puedes comprobarlo desde **Servicios** (`services.msc`). Si es la primera ejecución, la tarea solicita tu cuenta administradora de MySQL (normalmente `root`) y su contraseña para crear una base y un usuario exclusivos para la demo.
 
@@ -50,9 +54,9 @@ Copia `.env.example` a `.env` en la raíz. En PowerShell utiliza `Copy-Item .env
 | `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_HOST`, `MYSQL_PORT` | Credenciales y destino de MySQL. |
 | `VITE_API_URL` | Base HTTP que usa React. El valor de desarrollo predeterminado es `/api/v1`. |
 | `DJANGO_PROXY_TARGET` | Destino del proxy de Vite, por defecto `http://127.0.0.1:8000`. |
-| `VITE_CURRENCY` | Código de moneda mostrado en pantalla, por defecto `COP`. Usa `PEN` si el catálogo ya está expresado en soles. El formato conserva el importe almacenado. |
+| `VITE_CURRENCY` | Código de moneda mostrado en pantalla. La demo usa `PEN`. Si tu catálogo ya está en pesos colombianos, configura `VITE_CURRENCY=COP` en `frontend/.env.local` y reinicia Vite. El ajuste cambia el formato visual y conserva los importes almacenados. |
 
-Usa la base existente de Empresariales (por defecto `control360`) o una base dedicada para esta aplicación. Configura un nombre diferente a `control360_dw`. Las migraciones de esta actualización agregan tablas y el campo de código de barras a los productos existentes.
+Usa la base existente de Empresariales (por defecto `control360`) o una base dedicada para esta aplicación. Mantén un nombre diferente a `control360_dw`. Aplica las migraciones de Django pendientes antes de arrancar.
 
 En un servidor MySQL instalado en tu equipo, conéctate como administrador y crea un usuario específico para la base. Sustituye el valor indicado por la contraseña aleatoria de tu `.env`.
 
@@ -102,15 +106,15 @@ npm run dev
 
 Abre `http://localhost:5173`. En VS Code puedes iniciar ambos servidores con la tarea **Control360: Django y Vite** después de instalar dependencias y aplicar las migraciones.
 
-`create_demo_users` solicita una contraseña por cada cuenta y guarda hashes de Django. Las cuentas son `demo_admin`, `demo_seller` y `demo_warehouse`. En una base de demostración, `create_demo_data` registra un cliente ficticio, tres productos, existencias, pedidos, turnos para ventas y almacén, y una asistencia histórica con tiempo extra aprobado. Reejecutar el comando conserva los registros de demostración existentes sin duplicar las reservas. Usa `createsuperuser` para el acceso independiente a Django Admin.
+`create_demo_users` solicita una contraseña por cada cuenta y guarda hashes de Django. Las cuentas son `demo_admin`, `demo_seller` y `demo_warehouse`. En una base de demostración nueva, `create_demo_data` carga el escenario de DW con 12 productos y sus códigos de barras, cuatro categorías, nueve ubicaciones, cinco clientes, diez trabajadores, dos turnos y 24 pedidos de ejemplo. Estos pedidos se registran desde la cuenta de administración. Las ventas que registra el vendedor aparecen en su propio historial. En bases usadas, la carga conserva los registros existentes y omite los pedidos de ejemplo que necesitarían productos o clientes previamente registrados. Usa `createsuperuser` para el acceso independiente a Django Admin.
 
 Para desplegar el build de React, sirve `frontend/dist` con fallback a `index.html` y reenvía `/api` a Django mediante HTTPS. También puedes compilar con `VITE_API_URL` para una API de otro origen del mismo sitio y declarar el frontend en `FRONTEND_ORIGINS`. El cliente usa cookies y tokens CSRF.
 
 ## Probar los flujos con los tres roles
 
-1. Entra como vendedor y abre **Punto de venta**. Elige un cliente, busca por nombre o SKU, o enfoca **Código de barras** y escanea con un lector que emita teclas y Enter. En una demo nueva puedes usar `7750000000001`. En demos anteriores puedes escanear el SKU `C360-DEMO-01` o asignar un código desde **Productos** como administrador.
+1. Entra como vendedor y abre **Punto de venta**. Elige a Carlos Ramos y busca `BEB-001`, o enfoca **Código de barras** y escribe `2000000000015` y pulsa Enter. Un lector físico puede enviar ese mismo código y la tecla Enter. Puedes registrar el pedido con el cobro o cobrarlo más tarde desde el detalle.
 2. Elige efectivo e ingresa un importe suficiente para verificar el cambio en el comprobante. Para tarjeta, Yape o Plin, usa una referencia interna como `OP-1234` y revisa el historial. Cada cobro es un registro manual de demostración. La impresión es un comprobante interno.
-3. Entra como operario de almacén. Acepta el pedido, inicia preparación y márcalo listo. Vuelve a ventas para confirmar la entrega. Verifica el movimiento de reserva de stock en **Productos**. También puedes registrar cobros para pedidos antiguos desde su detalle.
+3. Entra como operario de almacén. Acepta el pedido, inicia preparación y márcalo listo. Vuelve a ventas para confirmar la entrega. Verifica el movimiento de reserva de stock en **Inventario**.
 4. En almacén, filtra **Stock bajo** o **Agotado** y reporta una incidencia en el producto. Como administrador, revisa la notificación y guarda la resolución. Compara las existencias antes y después de reportar la incidencia.
 5. En **Asistencia**, un vendedor u operario con ficha y turno envía una solicitud de entrada. Como administrador, verifica el aviso, revisa las horas y aprueba. Repite con la salida. Una solicitud rechazada requiere motivo. En el historial de administración, **Corregir** exige justificación y deja una auditoría de los cambios.
 6. Usa **Reportes** para consultar las asistencias confirmadas, los cobros por método y las incidencias del período. Exporta CSV y revisa que conserve los totales.

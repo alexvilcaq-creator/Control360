@@ -1,9 +1,13 @@
 from concurrent.futures import ThreadPoolExecutor
+from decimal import Decimal
+from io import StringIO
 from threading import Barrier
 from uuid import uuid4
 
+from django.core.management import call_command
 from django.db import connections
 from django.test import TestCase, TransactionTestCase
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts.models import User
@@ -13,7 +17,7 @@ from inventario.services import adjust_stock
 from notificaciones.models import Notification
 from productos.models import Category, Location, Product
 from trabajadores.models import Worker
-from .models import Order
+from .models import Order, Payment
 from .services import change_order, place_order
 
 
@@ -32,6 +36,50 @@ def fixtures():
     adjust_stock(product_id=first.pk, delta=6, reason="Apertura", actor=admin)
     adjust_stock(product_id=second.pk, delta=2, reason="Apertura", actor=admin)
     return admin, seller, worker, customer, first, second
+
+
+class DemoDataTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        for role in User.Role.values:
+            User.objects.create_user(f"demo_{role}", role=role)
+
+    def load_demo(self):
+        call_command("create_demo_data", stdout=StringIO())
+
+    def test_reference_scenario_and_dashboard_are_backed_by_mysql(self):
+        self.load_demo()
+        self.load_demo()
+        self.assertEqual(Product.objects.count(), 12)
+        self.assertEqual(Customer.objects.count(), 5)
+        self.assertEqual(Worker.objects.count(), 10)
+        self.assertEqual(Order.objects.count(), 24)
+        self.assertEqual(Order.objects.filter(status=Order.Status.PENDING).count(), 14)
+        self.assertEqual(Payment.objects.count(), 2)
+        product = Product.objects.get(barcode="2000000000015")
+        self.assertEqual(product.sku, "BEB-001")
+        self.assertEqual(product.stock, 148)
+
+        client = APIClient()
+        client.force_authenticate(User.objects.get(username="demo_admin"))
+        response = client.get("/api/v1/dashboard/", {"date": timezone.localdate().isoformat()})
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["orders_today"], 24)
+        self.assertEqual(response.data["attendance"]["at_work"], 8)
+        self.assertEqual(sum(row["quantity"] for row in response.data["inventory_by_category"]), 508)
+        self.assertEqual(client.get("/api/v1/dashboard/", {"date": "inválida"}).status_code, 400)
+
+    def test_existing_product_with_a_demo_sku_keeps_its_data_and_stock(self):
+        category = Category.objects.create(name="Catálogo anterior")
+        location = Location.objects.create(zone="D", aisle="2", shelf="5")
+        existing = Product.objects.create(sku="BEB-001", name="Producto existente", price=Decimal("55.10"),
+                                          category=category, location=location, stock=1)
+        self.load_demo()
+        self.load_demo()
+        existing.refresh_from_db()
+        self.assertEqual((existing.name, existing.price, existing.stock), ("Producto existente", Decimal("55.10"), 1))
+        self.assertFalse(existing.movements.exists())
+        self.assertFalse(Order.objects.filter(items__product=existing).exists())
 
 
 class OrderAPITests(TestCase):

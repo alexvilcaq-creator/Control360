@@ -8,12 +8,12 @@ Prefijo `/api/v1`. Las rutas usan barra final. Los listados tienen el formato pa
 | POST | `/auth/login/` | Recibe `username` con usuario o correo y `password`. Devuelve identidad y token CSRF rotado. |
 | GET | `/auth/me/` | Identidad y rol de la sesión. |
 | POST | `/auth/logout/` | Cierra la sesión y devuelve 204. |
-| GET | `/dashboard/`, `/summary/` | Panel por rol y resumen del catálogo activo. |
+| GET | `/dashboard/`, `/summary/` | Panel por rol y resumen del catálogo activo. En el panel, `date=AAAA-MM-DD` selecciona la fecha para pedidos recientes de administración, cobros e indicadores de asistencia. Las colas y existencias representan el estado actual. |
 | GET, POST | `/accounts/` | Listar/buscar y crear cuentas como administrador. |
 | GET, PUT, PATCH | `/accounts/{id}/` | Administrar cuentas, con desactivación mediante `is_active`. |
 | GET, POST | `/customers/` | Clientes para administrador y vendedor. Búsqueda con `search`. |
 | GET, PUT, PATCH, DELETE | `/customers/{id}/` | Edición según rol. Eliminación de administrador cuando la relación lo permite. |
-| GET, POST | `/products/`, `/categories/`, `/locations/` | Lectura autenticada, creación de administrador. Productos admite `category`, `stock=low\|out\|available`, `active=true\|false` y `search`. |
+| GET, POST | `/products/`, `/categories/`, `/locations/` | Lectura autenticada, creación de administrador. Productos admite `category`, `stock=low\|out\|available`, `active=true\|false`, `ordering=id` y `search`. |
 | GET, PUT, PATCH, DELETE | `/products/{id}/`, `/categories/{id}/`, `/locations/{id}/` | Lectura autenticada y escritura de administrador. Productos se desactivan con `is_active=false`. |
 | GET | `/products/scan/?code=…` | Busca el código de barras exacto y luego el SKU de un producto activo. Devuelve sus existencias y ubicación. |
 | GET, POST | `/products/{id}/movements/` | Historial y ajuste administrativo con `delta` y `reason`. |

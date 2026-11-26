@@ -1,14 +1,16 @@
 import { useCallback, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { Clock3, Pencil, Plus, Search, SlidersHorizontal, Trash2 } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Boxes, Clock3, Pencil, Plus, Search, SlidersHorizontal, Trash2 } from 'lucide-react'
+import ProductPhoto from '../components/ProductPhoto'
 import { catalog } from '../api/catalog'
+import { money } from '../api/operations'
 import { useAuth } from '../context/Auth'
 import { useQuery } from '../hooks/useQuery'
-import { Empty, Loading, Modal, Notice, Pagination } from '../components/UI'
+import { Empty, Loading, Modal, Notice, PageTitle, Pagination, Section, Tag } from '../components/UI'
 
 const catalogConfig = {
   products: {
-    title: 'Productos', singular: 'producto', description: 'Consulta existencias, precios y ubicaciones por SKU.',
+    title: 'Inventario', singular: 'producto', description: 'Consulta existencias, precios y ubicaciones por SKU.',
     fields: [
       ['barcode', 'Código de barras', { maxLength: 64 }],
       ['sku', 'SKU', { maxLength: 50 }], ['name', 'Nombre', { maxLength: 160 }],
@@ -30,9 +32,6 @@ const catalogConfig = {
   },
 }
 
-const priceFormat = new Intl.NumberFormat('es-CO', {
-  style: 'currency', currency: import.meta.env.VITE_CURRENCY || 'COP',
-})
 
 function Options({ values, labelKey }) {
   return values?.map(option => <option key={option.id} value={option.id}>{option[labelKey]}</option>)
@@ -77,14 +76,14 @@ export default function Catalog({ resource }) {
   const admin = user.role === 'admin'
   const products = resource === 'products'
   const config = catalogConfig[resource]
-  const [search, setSearch] = useState('')
-  const [category, setCategory] = useState('')
   const [params] = useSearchParams()
+  const [search, setSearch] = useState(() => params.get('q') || '')
+  const [category, setCategory] = useState('')
   const [stock, setStock] = useState(() => params.get('stock') || '')
   const [active, setActive] = useState('')
   const [page, setPage] = useState(1)
   const [version, setVersion] = useState(0)
-  const [modal, setModal] = useState(null)
+  const [modal, setModal] = useState(() => admin && params.get('nuevo') ? { type: 'edit' } : null)
   const [busy, setBusy] = useState(false)
   const [formError, setFormError] = useState('')
   const [success, setSuccess] = useState('')
@@ -134,14 +133,15 @@ export default function Catalog({ resource }) {
   }[modal.type]
 
   return <>
-    <div className="page-heading"><div><h1>{config.title}</h1><p>{config.description}</p></div>
-      {admin && <button className="button primary" onClick={() => open('edit')}><Plus size={18} /> Crear {config.singular}</button>}
-    </div>
+    <PageTitle title={config.title} subtitle={config.description}>
+      {admin && <button className="button primary" onClick={() => open('edit')}><Plus size={18} /> {products ? 'Nuevo producto' : `Crear ${config.singular}`}</button>}
+    </PageTitle>
     <Notice success>{success}</Notice>
     <Notice>{error || options.error}</Notice>
-    <section className="panel" aria-label={config.title}>
-      <div className="toolbar">
-        <label className="search"><Search size={18} /><input type="search" aria-label="Buscar" placeholder={products ? 'Buscar por SKU o nombre' : 'Buscar registros'}
+    <Section title={products ? 'Catálogo de productos' : config.title} icon={products ? Boxes : undefined} className="table-panel"
+      action={<span className="result-count">{data?.count ?? 0} {products ? 'productos' : 'registros'}</span>}>
+      <div className="filters">
+        <label className="input-icon"><Search size={18} /><input type="search" aria-label="Buscar" placeholder={products ? 'Nombre, SKU o código de barras' : 'Buscar registros'}
           value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} /></label>
         {products && <>
           <select aria-label="Filtrar por categoría" value={category} onChange={event => { setCategory(event.target.value); setPage(1) }}>
@@ -159,14 +159,18 @@ export default function Catalog({ resource }) {
       {data?.results.length === 0 && <Empty>No se encontraron registros.</Empty>}
       {data?.results.length > 0 && <div className="table-scroll"><table>
         <thead><tr>
-          {products ? <><th>Producto</th><th>Categoría</th><th>Ubicación</th><th>Precio</th><th>Existencias</th></>
+          {products ? <><th>Producto</th><th>Categoría</th><th>Ubicación</th><th>Precio</th><th>Existencias</th><th>Estado</th></>
             : config.fields.map(([name, label]) => <th key={name}>{label}</th>)}
           {(admin || products) && <th>Acciones</th>}
         </tr></thead>
         <tbody>{data.results.map(item => <tr key={item.id}>
-          {products ? <><td><strong>{item.name}</strong><small>{item.sku}{item.barcode && ` · ${item.barcode}`}{!item.is_active && ' · Desactivado'}</small>{item.description && <small>{item.description}</small>}</td>
-            <td>{item.category_name}</td><td>{item.location_label}</td><td>{priceFormat.format(item.price)}</td>
-            <td><span className={item.stock <= item.minimum_stock ? 'pill low' : 'pill'}>{item.stock} disponibles</span><small>Mínimo {item.minimum_stock}</small></td></>
+          {products ? <><td><div className="entity-cell"><ProductPhoto product={item}/><div><strong>{item.name}</strong>
+              <small>{item.sku}{item.barcode && ` · ${item.barcode}`}</small>
+              {item.description && <small>{item.description}</small>}</div></div></td>
+            <td>{item.category_name}</td><td>{user.role === 'seller' ? item.location_label :
+              <Link className="table-link" to={`/almacen?ubicacion=${item.location}`}>{item.location_label}</Link>}</td><td>{money.format(item.price)}</td>
+            <td><Tag tone={!item.is_active ? 'muted' : item.stock <= item.minimum_stock ? 'red' : 'green'}>{item.stock} u.</Tag><small>Mínimo {item.minimum_stock}</small></td>
+            <td><Tag tone={item.is_active ? 'green' : 'muted'} dot>{item.is_active ? 'Activo' : 'Inactivo'}</Tag></td></>
             : config.fields.map(([name]) => <td key={name}>{item[name]}</td>)}
           {(admin || products) && <td><div className="actions">
             {products && <button title="Historial" aria-label={`Historial de ${item.name}`} className="icon-button" onClick={() => open('history', item)}><Clock3 size={17} /></button>}
@@ -179,7 +183,7 @@ export default function Catalog({ resource }) {
         </tr>)}</tbody>
       </table></div>}
       <Pagination data={data} page={page} onChange={setPage} />
-    </section>
+    </Section>
     {modal && <Modal title={modalTitle} onClose={() => setModal(null)} busy={busy}>
       <div className="modal-body">
         <Notice>{formError}</Notice>

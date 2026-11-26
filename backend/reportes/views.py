@@ -3,7 +3,7 @@ from collections import Counter, defaultdict
 from datetime import datetime, time, timedelta
 
 from django.db import connections
-from django.db.models import Count, F, Q, Sum
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, Prefetch, Q, Sum
 from django.db.models.functions import TruncDate, TruncMonth, TruncWeek
 from django.http import HttpResponse
 from django.utils import timezone
@@ -12,9 +12,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import RolePermission, role_for
-from asistencias.models import Attendance, AttendanceRequest
+from asistencias.models import Attendance, AttendanceRequest, Schedule
 from asistencias.serializers import PeriodInput
-from asistencias.services import attendance_period
+from asistencias.services import attendance_period, employed_workers
 from inventario.models import InventoryIncident
 from pedidos.models import Order, OrderItem, Payment
 from pedidos.serializers import OrderSerializer
@@ -76,48 +76,95 @@ def low_stock():
     return available_products().filter(stock__lte=F("minimum_stock"))
 
 
+def attendance_snapshot(selected, today):
+    workers = employed_workers(selected, selected).prefetch_related(Prefetch(
+        "schedules", queryset=Schedule.objects.filter(effective_from__lte=selected).select_related("shift"),
+        to_attr="effective_schedules",
+    ))
+    planned = {
+        worker.pk for worker in workers if worker.effective_schedules
+        and selected.weekday() in worker.effective_schedules[0].shift.workdays
+    }
+    confirmations = Attendance.objects.filter(date=selected)
+    confirmed_ids = set(confirmations.values_list("worker_id", flat=True))
+    counts, _ = attendance_metrics(selected, selected)
+    active = len(confirmed_ids)
+    if selected == today:
+        active = Attendance.objects.filter(
+            clock_out__isnull=True, expected_out__gte=timezone.make_aware(datetime.combine(today, time.min)),
+        ).count()
+    return {**counts, "at_work": active, "scheduled": len(planned | confirmed_ids)}
+
+
+class DashboardDate(serializers.Serializer):
+    date = serializers.DateField(required=False)
+
+    def validate_date(self, value):
+        if value.year < 1900 or value > timezone.localdate():
+            raise serializers.ValidationError("Selecciona una fecha válida hasta hoy.")
+        return value
+
+
 class DashboardView(APIView):
     def get(self, request):
+        filters = DashboardDate(data=request.query_params)
+        filters.is_valid(raise_exception=True)
         role = role_for(request.user)
         today = timezone.localdate()
+        selected = filters.validated_data.get("date", today)
         orders = visible_orders(request.user)
-        week = today - timedelta(days=6)
+        week = selected - timedelta(days=6)
+        daily_orders = ordered_between(orders, selected, selected)
+        recent = orders.select_related("seller", "customer", "assignee__user").order_by("-created_at", "-pk")
+        context = {"request": request}
         data = {
-            "orders_today": ordered_between(orders, today, today).count(),
+            "date": selected.isoformat(), "today": today.isoformat(),
+            "orders_today": daily_orders.count(),
             "pending": orders.filter(status=Order.Status.PENDING).count(),
+            "ready": orders.filter(status=Order.Status.READY).count(),
             "completed": orders.filter(status=Order.Status.DELIVERED).count(),
             "products": available_products().count(),
             "low_stock": low_stock().count(),
-            "trend": timeline(ordered_between(orders, week, today), week, today),
+            "trend": timeline(ordered_between(orders, week, selected), week, selected),
             "statuses": distribution(orders),
             "recent": OrderSerializer(
-                orders.select_related("seller", "customer", "assignee__user").order_by("-created_at", "-pk")[:6],
-                many=True, context={"request": request},
+                (ordered_between(recent, selected, selected) if role == "admin" else recent)[:6],
+                many=True, context=context,
             ).data,
         }
         if role in ("admin", "seller"):
             payments = Payment.objects.filter(order__in=orders, status=Payment.Status.PAID)
-            data["paid_today"] = str(ordered_between(payments, today, today).aggregate(total=Sum("amount", default=0))["total"])
+            today_payments = ordered_between(payments, selected, selected)
+            totals = today_payments.aggregate(total=Sum("amount", default=0), count=Count("pk"))
+            data["paid_today"] = str(totals["total"])
+            data["paid_count"] = totals["count"]
         if role in ("admin", "warehouse"):
             incidents = InventoryIncident.objects.exclude(status=InventoryIncident.Status.RESOLVED)
             if role == "warehouse":
                 incidents = incidents.filter(reporter=request.user)
             data["open_incidents"] = incidents.count()
         if role == "admin":
-            today_rows = Attendance.objects.filter(date=today)
+            attendance = attendance_snapshot(selected, today)
+            inventory_value = ExpressionWrapper(F("stock") * F("price"), output_field=DecimalField(
+                max_digits=24, decimal_places=2,
+            ))
+            by_category = available_products().order_by("category_id").values("category_id", "category__name").annotate(
+                quantity=Sum("stock"), value=Sum(inventory_value),
+            )
             data.update(
-                present=Attendance.objects.filter(
-                    clock_out__isnull=True, expected_out__gte=timezone.make_aware(datetime.combine(today, time.min)),
-                ).count(),
+                present=attendance["at_work"], late=attendance["late"], overtime=attendance["overtime"],
+                attendance=attendance,
                 pending_attendance=AttendanceRequest.objects.filter(status=AttendanceRequest.Status.PENDING).count(),
-                late=today_rows.filter(late_minutes__gt=0).count(),
-                overtime=today_rows.aggregate(total=Sum("approved_overtime", default=0))["total"],
-                alerts=list(low_stock().order_by("stock", "pk").values("sku", "name", "stock", "minimum_stock")[:5]),
+                alerts=list(low_stock().order_by("stock", "pk").values("sku", "name", "stock", "minimum_stock", "category__name")[:5]),
+                inventory_by_category=[{"name": row["category__name"], "quantity": row["quantity"],
+                                        "value": str(row["value"])} for row in by_category],
+                employed=employed_workers(selected, selected).filter(user__is_active=True).count(),
             )
         if role == "warehouse":
-            data["assigned"] = orders.filter(
-                assignee__user=request.user, status__in=[Order.Status.ACCEPTED, Order.Status.PREPARING],
-            ).count()
+            assigned = recent.filter(assignee__user=request.user)
+            data["assigned"] = assigned.filter(status__in=[Order.Status.ACCEPTED, Order.Status.PREPARING]).count()
+            data["pending_recent"] = OrderSerializer(recent.filter(status=Order.Status.PENDING)[:5], many=True, context=context).data
+            data["assigned_recent"] = OrderSerializer(assigned[:5], many=True, context=context).data
         return Response(data)
 
 
@@ -166,6 +213,7 @@ def report_data(start, end, group):
     incidents = ordered_between(InventoryIncident.objects.all(), start, end).order_by()
     incident_rows = incidents.values("status").annotate(count=Count("pk")).order_by("status")
     return {
+        "active_workers": employed_workers(start, end).filter(user__is_active=True).count(),
         "payments": [{**row, "amount": str(row["amount"])} for row in payment_rows],
         "incidents": list(incident_rows),
         "trend": timeline(orders, start, end, group), "statuses": distribution(orders),

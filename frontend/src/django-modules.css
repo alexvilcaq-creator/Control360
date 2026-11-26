@@ -1,0 +1,90 @@
+/* Controles de los flujos de Django que amplían la interfaz compartida con DW. */
+:root { --panel-bg: var(--surface-soft); --text: var(--ink); }
+body { min-width: 0; }
+.button.primary { color: var(--primary-ink); background: var(--primary); }
+.button.primary:hover:not(:disabled) { background: var(--primary-hover); }
+.button.secondary { background: var(--surface); border-color: var(--line); color: var(--ink); }
+.button.secondary:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
+.button.danger { color: white; background: #b32b49; }
+.button.danger:hover:not(:disabled) { background: #992742; }
+
+.panel { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.panel h2 { font-size: clamp(14px,1.25vw,18px); font-weight: 740; letter-spacing: -.025em; }
+.section-heading { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 13px 15px; }
+.toolbar { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; padding: 11px 14px; }
+.heading-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.stack,.dashboard-stack { display: grid; gap: var(--gap); min-width: 0; }
+form.stack label,.form-grid label { display: grid; gap: 5px; min-width: 0; font-size: 12px; font-weight: 640; }
+form.stack label :is(input,textarea,select), .form-grid label :is(input,textarea,select) { min-width: 0; max-width: 100%; }
+.search { display: flex; align-items: center; gap: 8px; padding-left: 10px; min-height: 38px; border-radius: 8px; color: var(--muted); border: 1px solid var(--line); background: var(--surface); flex: 1 1 190px; }
+.search input { width: 100%; min-width: 0; border: 0; background: transparent; padding-left: 0; outline-offset: -2px; }
+.search:focus-within { border-color: var(--focus); box-shadow: 0 0 0 2px var(--brand-soft); }
+.search input:focus-visible { outline: none; }
+.search svg { flex-shrink: 0; pointer-events: none; }
+.actions { display: flex; gap: 4px; }
+td small,.movement small { display: block; color: var(--muted); font-size: 10.5px; margin-top: 3px; }
+.pagination { display: flex; align-items: center; justify-content: space-between; min-width: 0; gap: 6px; border-top: 1px solid var(--line); padding: 6px 12px; color: var(--muted); font-size: 11px; }
+.pagination>div { display: flex; align-items: center; gap: 4px; }
+.text-button { color: var(--brand); font-size: 12px; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
+.module-toolbar { margin-bottom: var(--gap); }
+.modal-body { padding: 17px; }
+.modal-body h2 { font-size: 16px; font-weight: 740; }
+.modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 11px 17px; border-top: 1px solid var(--line); }
+.form-grid p,.form-grid .field:has(textarea) { grid-column: 1/-1; }
+.movement { display: flex; gap: 12px; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.check-field { display: inline-flex !important; align-items: center; gap: 7px; }
+.day-field { display: flex; flex-wrap: wrap; gap: 8px; grid-column: 1/-1; margin-bottom: 12px; }
+.day-field legend { margin-bottom: 6px; }
+.success-notice,.toast { padding: 9px 12px; border-radius: 8px; background: var(--green-bg); color: var(--green-text); font-size: 12px; font-weight: 650; }
+.success-notice { margin-bottom: 12px; }
+.toast { position: fixed; display: flex; align-items: center; gap: 7px; z-index: 22; inset: auto 16px 16px auto; box-shadow: var(--dialog-shadow); }
+.kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(205px,1fr); align-items: start; gap: 10px; overflow-x: auto; padding: 3px 2px 14px; }
+.kanban-column { min-height: 180px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: var(--radius); }
+.kanban-column header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; color: var(--muted); font-size: 12px; }
+.kanban-cards,.picker { display: grid; gap: 5px; padding: 0 8px 10px; }
+.kanban-cards button,.picker button { display: grid; gap: 4px; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 12px; }
+.kanban-cards button:hover,.picker button:hover:not(:disabled) { border-color: var(--brand); }
+.kanban-cards small,.picker small,.notification-row small,.order-item small { display: block; color: var(--muted); font-size: 10.5px; }
+.picker { max-height: 165px; overflow: auto; padding: 2px; }
+.picker button { grid-template-columns: minmax(0,1fr) auto; align-items: center; }
+.picker button>span:last-child,.cash-change { display: flex; align-items: center; justify-content: space-between; gap: 7px; }
+.order-line { display: grid; grid-template-columns: minmax(0,1fr) 68px 32px; align-items: center; gap: 7px; }
+.order-line input { min-width: 0; }
+.chart-grid { display: grid; grid-template-columns: minmax(0,1.4fr) minmax(0,1fr); gap: var(--gap); }
+.chart-card { padding: 15px; }
+.chart-frame { min-width: 0; margin-top: 12px; }
+.payment-fields { padding: 11px; background: var(--surface-soft); border-radius: 8px; }
+.payment-fields label { margin: 0; }
+.receipt-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.receipt-lines { display: grid; grid-template-columns: 1fr 1.5fr; gap: 5px 10px; }
+.receipt-lines dt { color: var(--muted); }
+.receipt-lines dd { text-align: right; overflow-wrap: anywhere; }
+.calendar-wrap { max-width: 640px; padding: 0 14px 14px; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 4px; text-align: center; }
+.calendar-grid>span { color: var(--muted); font-size: 11px; padding: 4px; }
+.calendar-grid button { display: grid; place-items: center; gap: 3px; min-height: 42px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-soft); font-size: 11.5px; }
+.calendar-grid button:hover,.calendar-grid button[aria-pressed="true"] { border-color: var(--brand); color: var(--brand); }
+.calendar-indicators,.calendar-legend,.calendar-legend span { display: flex; align-items: center; gap: 5px; }
+.calendar-indicators { min-height: 7px; }
+.calendar-legend { margin-top: 8px; gap: 12px; color: var(--muted); font-size: 11px; }
+.present-dot,.absent-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--chart-1); }
+.absent-dot { background: var(--red-text); }
+.notification-row { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 11px; border-bottom: 1px solid var(--line); font-size: 12px; }
+.notification-row.unread { background: var(--surface-soft); }
+.notification-row .tile-icon { display: grid; place-items: center; width: 32px; height: 32px; color: var(--brand); background: var(--brand-soft); border-radius: 7px; }
+.login-main { position: relative; }
+.login-theme { position: absolute; inset: 16px 20px auto auto; }
+.legacy-welcome { position: relative; }
+.legacy-welcome .login-intro { margin-bottom: 40px; }
+.legacy-welcome .login-main { align-items: center; }
+.legacy-welcome .login-form .section-title { margin-bottom: 8px; }
+@media(max-width:850px){.chart-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){
+  .form-grid { grid-template-columns: minmax(0,1fr); }
+  .notification-row { grid-template-columns: auto minmax(0,1fr); }
+  .notification-row .heading-actions { grid-column: 2; }
+  .legacy-welcome .login-intro { margin-bottom: 20px; }
+}
+.notice-footer { display: flex; justify-content: flex-end; padding: 9px 0 0; }
+.dashboard-trends { margin-top: var(--gap); }
+.dashboard-trends summary { color: var(--brand); font-size: 12px; font-weight: 650; cursor: pointer; padding: 8px 0; }

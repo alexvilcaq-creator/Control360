@@ -4,7 +4,8 @@ import { catalog } from '../api/catalog'
 import { request } from '../api/client'
 import { dateLabel, localDate, post, query } from '../api/operations'
 import { Empty, Loading, Modal, Notice, PageHeading, Pagination, Status, Toast } from '../components/UI'
-import { AttendanceCorrection, AttendanceRequests, ShiftCard } from '../components/AttendanceRequests'
+import { AttendanceCorrection, AttendanceRequests } from '../components/AttendanceRequests'
+import PersonalAttendance from '../components/PersonalAttendance'
 import { usePolling } from '../hooks/usePolling'
 import { useAuth } from '../context/Auth'
 import { useQuery } from '../hooks/useQuery'
@@ -119,7 +120,7 @@ export default function Attendance() {
       </button>}
     </PageHeading>
     <Notice>{operationError || error || workers.error || shift.error}</Notice>
-    {!admin && <ShiftCard state={shift.data}/>}
+    {!admin && <PersonalAttendance resource={shift} showHistory={false}/>}
     <AttendanceRequests admin={admin} version={version} onChanged={changed}/>
     <section className="panel attendance-panel">
       <div className="toolbar"><label className="field"><span><CalendarDays size={16}/> Mes</span>

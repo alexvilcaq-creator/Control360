@@ -1,11 +1,13 @@
 import { useCallback, useState } from 'react'
-import { Columns3, List, Plus, Search, Trash2 } from 'lucide-react'
+import { Columns3, List, Plus, Search, ShoppingCart, Trash2 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { request } from '../api/client'
 import { catalog } from '../api/catalog'
-import { dateLabel, money, orderActions, orderStatus, post } from '../api/operations'
+import { dateLabel, money, orderActions, orderCode, orderStatus, post } from '../api/operations'
+import OrderProgress from '../components/OrderProgress'
 import { PaymentFields, paymentBody, paymentMethods, paymentStates } from '../components/Payment'
-import { Empty, Loading, Modal, Notice, PageHeading, Pagination, Status, Toast } from '../components/UI'
+import ReferenceOrderTable from '../components/ReferenceOrderTable'
+import { Empty, Loading, Modal, Notice, PageHeading, Pagination, Section, Status, TextLink, Toast } from '../components/UI'
 import { useAuth } from '../context/Auth'
 import { useQuery } from '../hooks/useQuery'
 
@@ -35,7 +37,7 @@ function NewOrder({ onClose, onSaved }) {
         customer: Number(form.get('customer')),
         items: lines.map(line => ({ product: line.id, quantity: Number(line.quantity) })),
       })
-      onSaved(`Pedido #${order.id} registrado.`)
+      onSaved(`Pedido ${orderCode(order.id)} registrado.`)
     } catch (error) { setError(error.message) }
     finally { setBusy(false) }
   }
@@ -125,7 +127,7 @@ function OrderDetail({ id, onClose, onChanged }) {
     finally { setBusy(false) }
   }
 
-  return <Modal title={`Pedido #${id}`} onClose={onClose} busy={busy}>
+  return <Modal title={`Pedido ${orderCode(id)}`} onClose={onClose} busy={busy}>
     <div className="modal-body stack">
       <Notice>{error || readError || workers.error}</Notice>
       {loading && <Loading />}
@@ -133,6 +135,7 @@ function OrderDetail({ id, onClose, onChanged }) {
         <div className="detail-summary"><div><strong>{data.customer_name}</strong>
           <p className="muted">{data.assignee_name ? `Asignado a ${data.assignee_name}` : 'Sin asignar'}</p></div>
           <Status status={data.status}>{orderStatus[data.status]}</Status></div>
+        <OrderProgress status={data.status}/>
         {data.items.map(item => <div className="movement" key={item.product}>
           <div><strong>{item.name}</strong><small>{item.sku} · {item.location}</small></div>
           <div><strong>{item.quantity} × {money.format(item.unit_price)}</strong></div>
@@ -171,61 +174,64 @@ function OrderDetail({ id, onClose, onChanged }) {
   </Modal>
 }
 
-export function OrderTable({ orders, onOpen }) {
-  return <div className="table-scroll"><table>
-    <thead><tr><th>Pedido</th><th>Cliente</th><th>Estado</th><th>Asignación</th><th>Total</th></tr></thead>
-    <tbody>{orders.map(order => <tr key={order.id}>
-      <td><button className="text-button" onClick={() => onOpen(order.id)}>#{order.id}</button><small>{dateLabel(order.created_at)}</small></td>
-      <td>{order.customer_name}</td><td><Status status={order.status}>{orderStatus[order.status]}</Status></td>
-      <td>{order.assignee_name || 'Sin asignar'}</td><td>{money.format(order.total)}</td>
-    </tr>)}</tbody>
-  </table></div>
-}
-
-function OrderList({ status = '', search, mine, version, onOpen, board }) {
+function OrderList({ status = '', search, mine, version, onOpen, board, filters }) {
   const [page, setPage] = useState(1)
   const load = useCallback(signal => catalog.list('orders', { status, search, page, mine }, signal),
     [status, search, page, mine, version])
   const { data, loading, error } = useQuery(load)
-  return <div className={board ? 'kanban-column' : 'panel'}>
-    {board && <header><Status status={status}>{orderStatus[status]}</Status><span>{data?.count ?? '—'}</span></header>}
+  const display = <>
     <Notice>{error}</Notice>
     {loading && <Loading />}
     {data?.results.length === 0 && <Empty>{board ? 'Sin pedidos' : 'No se encontraron pedidos.'}</Empty>}
     {!!data?.results.length && (board ? <div className="kanban-cards">
       {data.results.map(order => <button key={order.id} onClick={() => onOpen(order.id)}>
-        <strong>#{order.id} · {order.customer_name}</strong>
+        <strong>{orderCode(order.id)} · {order.customer_name}</strong>
         <small>{order.assignee_name || 'Sin asignar'}</small><span>{money.format(order.total)}</span>
       </button>)}
-    </div> : <OrderTable orders={data.results} onOpen={onOpen} />)}
+    </div> : <ReferenceOrderTable rows={data.results} filters={filters} showAssignee/>)}
     {data?.count > 0 && (!board || data.next || data.previous) && <Pagination data={data} page={page} onChange={setPage} />}
-  </div>
+  </>
+  return board ? <div className="kanban-column">
+    <header><Status status={status}>{orderStatus[status]}</Status><span>{data?.count ?? '—'}</span></header>{display}
+  </div> : <Section title="Listado de pedidos" icon={ShoppingCart} className="table-panel"
+    action={<span className="result-count">{data?.count ?? 0} pedidos</span>}>
+    {display}
+  </Section>
 }
 
 export default function Orders() {
   const { user } = useAuth()
   const [params, setParams] = useSearchParams()
-  const [board, setBoard] = useState(true)
+  const [board, setBoard] = useState(false)
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('')
-  const [mine, setMine] = useState('')
+  const status = Object.hasOwn(orderStatus, params.get('estado')) ? params.get('estado') : ''
+  const mine = user.role === 'warehouse' && params.get('vista') === 'asignados' ? 'true' : ''
   const [version, setVersion] = useState(0)
   const [creating, setCreating] = useState(false)
   const [toast, setToast] = useState('')
   const closeToast = useCallback(() => setToast(''), [])
-  const open = id => setParams({ pedido: id })
-  const close = () => setParams({})
+  function updateParams(key, value) {
+    const next = new URLSearchParams(params)
+    if (value) next.set(key, value)
+    else next.delete(key)
+    setParams(next)
+  }
+  const open = id => updateParams('pedido', id)
+  const close = () => updateParams('pedido', '')
   const onChanged = message => { setToast(message); setVersion(value => value + 1) }
   const listKey = JSON.stringify([search, mine, status, version])
   return <>
     <PageHeading title={user.role === 'warehouse' ? 'Pedidos de almacén' : 'Pedidos'} description="Consulta el estado y el historial de cada pedido.">
-      {user.role !== 'warehouse' && <button className="button primary" onClick={() => setCreating(true)}><Plus size={18}/> Nuevo pedido</button>}
+      {user.role !== 'warehouse' && <>
+        <TextLink to="/clientes">Clientes</TextLink>
+        <button className="button primary" onClick={() => setCreating(true)}><Plus size={18}/> Nuevo pedido</button>
+      </>}
     </PageHeading>
     <div className="toolbar panel module-toolbar">
       <label className="search"><Search size={18}/><input type="search" aria-label="Buscar pedidos" placeholder="Número, cliente o SKU" value={search} onChange={event => setSearch(event.target.value)} /></label>
-      {user.role === 'warehouse' && <select aria-label="Asignación" value={mine} onChange={event => setMine(event.target.value)}>
+      {user.role === 'warehouse' && <select aria-label="Asignación" value={mine} onChange={event => updateParams('vista', event.target.value && 'asignados')}>
         <option value="">Pendientes y asignados a mí</option><option value="true">Mis tareas</option></select>}
-      {!board && <select aria-label="Estado" value={status} onChange={event => setStatus(event.target.value)}>
+      {!board && <select aria-label="Estado" value={status} onChange={event => updateParams('estado', event.target.value)}>
         <option value="">Todos los estados</option>
         {Object.entries(orderStatus).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
       </select>}
@@ -234,7 +240,7 @@ export default function Orders() {
     </div>
     {board ? <div className="kanban" aria-label="Tablero Kanban" tabIndex={0}>
       {Object.keys(orderStatus).map(status => <OrderList key={status + listKey} {...{ status, search, mine, version }} onOpen={open} board />)}
-    </div> : <OrderList key={listKey} {...{ status, search, mine, version }} onOpen={open} />}
+    </div> : <OrderList key={listKey} {...{ status, search, mine, version }} filters={params} />}
     {creating && <NewOrder onClose={() => setCreating(false)} onSaved={message => { setCreating(false); onChanged(message) }} />}
     {params.get('pedido') && <OrderDetail key={params.get('pedido')} id={params.get('pedido')} onClose={close} onChanged={onChanged} />}
     <Toast onClose={closeToast}>{toast}</Toast>

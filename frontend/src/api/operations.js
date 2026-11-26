@@ -18,8 +18,9 @@ export const exactDateLabel = value => value ? new Date(value).toLocaleString('e
   dateStyle: 'short', timeStyle: 'medium', timeZone: 'America/Bogota',
 }) : '—'
 
-export const money = new Intl.NumberFormat('es-CO', {
-  style: 'currency', currency: import.meta.env.VITE_CURRENCY || 'COP',
+const currency = import.meta.env.VITE_CURRENCY || 'PEN'
+export const money = new Intl.NumberFormat(currency === 'COP' ? 'es-CO' : 'es-PE', {
+  style: 'currency', currency,
 })
 
 export const localDate = (value = new Date()) => new Intl.DateTimeFormat('en-CA', {
@@ -32,4 +33,29 @@ export function query(values) {
 
 export function post(path, body) {
   return request(path, { method: 'POST', body })
+}
+
+export function notificationTarget(item) {
+  if (item.kind.startsWith('attendance_')) return '/asistencia'
+  if (item.kind.startsWith('incident_')) return '/incidencias'
+  if (item.order) return `/pedidos?pedido=${item.order}`
+  return item.product ? '/inventario?stock=low' : '/notificaciones'
+}
+
+export const normalize = value => String(value ?? '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
+export const orderCode = id => 'PED-' + String(id).padStart(4, '0')
+export const aisleCode = ({ zone, aisle }) => `${zone}${aisle}`
+export const shelfCode = location => `${aisleCode(location)} · E${location.shelf}`
+export const locationLabel = location => location ? `Zona ${location.zone} · Pasillo ${location.aisle} · Estante ${location.shelf}` : '—'
+export const businessDateLabel = value => new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium', timeZone: 'America/Bogota' })
+  .format(new Date(value.length === 10 ? `${value}T12:00:00-05:00` : value))
+export const timeLabel = value => new Intl.DateTimeFormat('es-PE', {
+  hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Bogota',
+})
+  .format(new Date(value))
+
+export function matchesLocation(location, query) {
+  const compact = value => normalize(value).replace(/[\s.·-]+/g, '')
+  return normalize(locationLabel(location)).includes(query)
+    || [aisleCode(location), shelfCode(location)].some(alias => compact(alias) === compact(query))
 }

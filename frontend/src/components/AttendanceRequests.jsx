@@ -9,18 +9,6 @@ import { Empty, Loading, Modal, Notice, Pagination, Status } from './UI'
 const states = { pending: 'Pendiente', approved: 'Aprobada', rejected: 'Rechazada' }
 const tones = { pending: 'pending', approved: 'ready', rejected: 'cancelled' }
 const roles = { seller: 'Vendedor', warehouse: 'Almacén', admin: 'Administrador' }
-const workdays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
-
-export function ShiftCard({ state }) {
-  const shift = state?.schedule
-  if (!state) return null
-  return <section className="panel personal-shift">
-    <div><h2>Mi turno</h2>{shift ? <><strong>{shift.name}</strong><p className="muted">
-      {shift.starts_at.slice(0, 5)} a {shift.ends_at.slice(0, 5)} · {shift.workdays.map(day => workdays[day]).join(', ')}
-    </p></> : <p className="muted">{state.linked ? 'Sin turno vigente.' : 'Pide a administración que vincule tu cuenta y asigne un turno.'}</p>}</div>
-    {state.pending && <Status status="pending">Solicitud pendiente</Status>}
-  </section>
-}
 
 function ReviewPunch({ row, onClose, onDone }) {
   const [decision, setDecision] = useState('approved')
