@@ -5,7 +5,7 @@ import { catalog } from '../api/catalog'
 import { request } from '../api/client'
 import { money, post, query } from '../api/operations'
 import { PaymentFields, Receipt, paymentBody } from '../components/Payment'
-import ProductIcon from '../components/ProductIcon'
+import ProductPhoto from '../components/ProductPhoto'
 import { Empty, Loading, Notice, PageHeading, Pagination, Section, Tag, TextLink } from '../components/UI'
 import { useQuery } from '../hooks/useQuery'
 
@@ -115,7 +115,7 @@ export default function PointOfSale() {
         {products.loading && <Loading />}
         {products.data?.results.length === 0 && <Empty>No hay productos para esta búsqueda.</Empty>}
         <div className="pos-products">{products.data?.results.map(product => <article className="pos-product" key={product.id}>
-          <ProductIcon/>
+          <ProductPhoto product={product}/>
           <div><strong>{product.name}</strong><small>{product.sku}{product.barcode && ` · ${product.barcode}`}</small></div>
           <div className="pos-product-end"><strong>{money.format(product.price)}</strong>
             <Tag tone={product.stock > 0 ? 'green' : 'red'}>{product.stock} u.</Tag>

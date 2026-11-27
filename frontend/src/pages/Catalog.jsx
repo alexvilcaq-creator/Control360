@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Boxes, Clock3, Pencil, Plus, Search, SlidersHorizontal, Trash2 } from 'lucide-react'
-import ProductIcon from '../components/ProductIcon'
+import ProductPhoto from '../components/ProductPhoto'
 import { catalog } from '../api/catalog'
 import { money } from '../api/operations'
 import { useAuth } from '../context/Auth'
@@ -165,7 +165,7 @@ export default function Catalog({ resource }) {
           {(admin || products) && <th>Acciones</th>}
         </tr></thead>
         <tbody>{data.results.map(item => <tr key={item.id}>
-          {products ? <><td><div className="entity-cell"><ProductIcon/><div><strong>{item.name}</strong>
+          {products ? <><td><div className="entity-cell"><ProductPhoto product={item}/><div><strong>{item.name}</strong>
               <small>{item.sku}{item.barcode && ` · ${item.barcode}`}</small>
               {item.description && <small>{item.description}</small>}</div></div></td>
             <td>{item.category_name}</td><td>{!item.location ? 'Sin ubicación asignada' : user.role === 'seller' ? item.location_label :

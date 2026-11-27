@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowUpRight, MapPin, Search, Layers3, Truck, X, Warehouse as WarehouseIcon } from 'lucide-react'
+import { ArrowUpRight, MapPin, Search, Truck, X, Warehouse as WarehouseIcon } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Empty, ErrorNotice, Loading, PageTitle, Section, Tag, TextLink } from '../components/UI'
-import ProductIcon from '../components/ProductIcon'
+import ProductPhoto from '../components/ProductPhoto'
 import WarehouseRoute from '../components/WarehouseRoute'
 import { useAuth } from '../context/Auth'
 import { catalog } from '../api/catalog'
@@ -85,7 +85,7 @@ export default function Warehouse() {
         {locations.loading ? <Loading/> : zones.length ?
           <div className="warehouse-floor">
             <div className="map-terminal"><Truck size={21}/> Recepción</div>
-            <div className="warehouse-zones">{zones.map(([zone, cells]) =>
+            <div className="warehouse-zones">{zones.map(([zone, cells], index) =>
               <div className="map-zone" key={zone}><span>Zona {zone}</span><div>
                 {cells.map(item => {
                   const current = destinationId === item.id
@@ -93,7 +93,8 @@ export default function Warehouse() {
                     className={`map-cell ${current ? 'selected' : ''} ${search && highlightIds.has(item.id) ? 'matching' : ''}`}
                     aria-pressed={active?.id === item.id} aria-current={current ? 'location' : undefined}
                     aria-label={locationLabel(item)} onClick={() => selectShelf(active?.id === item.id ? null : item.id)}>
-                    <span className="map-shelf-icon" aria-hidden="true"><Layers3 size={26}/></span>
+                    <img className="map-shelf-image" src={`/images/rack-${index % 3 + 1}.webp`}
+                      alt="" width="78" height="58" loading="lazy" decoding="async"/>
                     <span className="map-cell-info"><strong>{shelfCode(item)}</strong><small>Pasillo {item.aisle}</small></span>
                     {products.data && <span className="map-cell-count">{counts.get(item.id) ?? 0}</span>}
                   </button>
@@ -109,7 +110,7 @@ export default function Warehouse() {
           : selected && !productId && !active ? <Empty>La ubicación solicitada no está disponible en el mapa.</Empty>
           : shown.length ? <div className="map-products">
             {shown.map(item => <Link key={item.id} to={`/inventario?q=${encodeURIComponent(item.sku)}`}>
-              <ProductIcon/>
+              <ProductPhoto product={item}/>
               <div><strong>{item.name}</strong><small>{productId ? item.sku : locationLabel(locationById.get(String(item.location)))}</small></div>
               <Tag tone={item.stock <= item.minimum_stock ? 'red' : 'blue'}>{item.stock} u.</Tag><ArrowUpRight size={15}/>
             </Link>)}
