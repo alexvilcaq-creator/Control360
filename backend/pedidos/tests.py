@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from io import StringIO
+from secrets import token_urlsafe
 from threading import Barrier
 from uuid import uuid4
 
@@ -10,6 +11,7 @@ from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from accounts.demo import prepare_demo_accounts
 from accounts.models import User
 from clientes.models import Customer
 from config.api import Conflict
@@ -80,6 +82,32 @@ class DemoDataTests(TestCase):
         self.assertEqual((existing.name, existing.price, existing.stock), ("Producto existente", Decimal("55.10"), 1))
         self.assertFalse(existing.movements.exists())
         self.assertFalse(Order.objects.filter(items__product=existing).exists())
+
+    def test_demo_launcher_preserves_old_accounts_and_can_seed_with_replacement_logins(self):
+        admin = User.objects.get(username="demo_admin")
+        admin.set_password(token_urlsafe(24))
+        admin.save(update_fields=["password"])
+        User.objects.filter(username="demo_seller").update(is_active=False)
+        User.objects.filter(username="demo_warehouse").update(role=User.Role.SELLER)
+        previous = list(User.objects.order_by("pk").values_list("pk", "role", "is_active", "password"))
+        config = {"admin_password": token_urlsafe(24)}
+
+        usernames, credentials = prepare_demo_accounts(config)
+        options = {f"{role}_user": username for role, username in usernames.items()}
+        call_command("create_demo_data", stdout=StringIO(), **options)
+        self.assertEqual(prepare_demo_accounts(config), (usernames, credentials))
+        call_command("create_demo_data", stdout=StringIO(), **options)
+
+        for pk, role, is_active, password in previous:
+            old = User.objects.get(pk=pk)
+            self.assertEqual((old.role, old.is_active, old.password), (role, is_active, password))
+        client = APIClient()
+        for role, username in usernames.items():
+            self.assertTrue(username.startswith(f"demo_{role}_"))
+            self.assertTrue(client.login(username=username, password=credentials[username]))
+            self.assertEqual(client.get("/api/v1/auth/me/").data["role"], role)
+        self.assertEqual(Order.objects.count(), 24)
+        self.assertEqual(Worker.objects.count(), 10)
 
 
 class OrderAPITests(TestCase):

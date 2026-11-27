@@ -67,10 +67,15 @@ def demo_team(users, general, morning, today):
         document = f"DEMO-{number:02}"
         role = User.Role.SELLER if index == 9 else User.Role.WAREHOUSE
         primary_account = users["seller"] if index == 9 else users["warehouse"] if index == 0 else None
+        primary_available = primary_account and not Worker.objects.filter(user=primary_account).exists()
         if Worker.objects.filter(document=document).exists():
-            continue
+            if not primary_available:
+                continue
+            document = f"{document}-{primary_account.pk}"
+            if Worker.objects.filter(document=document).exists():
+                continue
         # Una demo anterior puede tener una ficha original vinculada a la misma cuenta.
-        if primary_account and not Worker.objects.filter(user=primary_account).exists():
+        if primary_available:
             account = primary_account
         else:
             username = f"operacion_demo_{number:02}"
@@ -89,7 +94,7 @@ def demo_team(users, general, morning, today):
             Schedule.objects.create(worker=worker, shift=morning, effective_from=yesterday)
             previous = clock(account, "in", now=timezone.make_aware(datetime.combine(yesterday, time(6))))
             clock(account, "out", now=timezone.make_aware(datetime.combine(yesterday, time(14, 30))))
-            if index <= 3:
+            if index <= 3 and morning.overtime_minimum <= 30:
                 approve(previous.pk, 30)
         Schedule.objects.create(worker=worker, shift=general, effective_from=today)
         if (has_sample_attendance and today.weekday() in general.workdays
@@ -132,13 +137,18 @@ def demo_orders(admin, products, customers, team, now):
 class Command(BaseCommand):
     help = "Carga los datos ficticios de Control360-DW en el esquema local de Empresariales."
 
+    def add_arguments(self, parser):
+        for role in User.Role.values:
+            parser.add_argument(f"--{role}-user", default=f"demo_{role}", help=f"Cuenta de demostración para el rol {role}.")
+
     @transaction.atomic
     def handle(self, **options):
         users = {}
         for role in User.Role.values:
-            user = User.objects.filter(username=f"demo_{role}", role=role, is_active=True, is_superuser=False).first()
+            username = options[f"{role}_user"]
+            user = User.objects.filter(username=username, role=role, is_active=True, is_superuser=False).first()
             if not user:
-                raise CommandError("Ejecuta create_demo_users con las tres cuentas de demostración habilitadas.")
+                raise CommandError(f"La cuenta de demostración {username} debe estar habilitada y tener el rol {role}.")
             users[role] = user
         # Serializa dos cargas del mismo escenario y conserva los registros ya existentes.
         User.objects.select_for_update().get(pk=users["admin"].pk)

@@ -29,6 +29,8 @@ La tarea usa el **servidor MySQL instalado en tu PC**, en el puerto 3306. Verifi
 
 La tarea aplica las migraciones, carga los datos ficticios y muestra en su terminal las cuentas `demo_admin`, `demo_seller` y `demo_warehouse` con sus contraseñas locales cuando están guardadas en la configuración de la demo. Los datos de la demo se mantienen entre arranques. La tarea guarda su configuración en `.control360-demo/`, excluida de Git, y conserva el archivo `.env`.
 
+Si un nombre de demo ya está ocupado por una cuenta desactivada, con otro rol o incompatible con la configuración local, el iniciador conserva esa cuenta y muestra un nuevo usuario de prueba con sufijo. Para entrar, copia el usuario completo y la contraseña que imprime la terminal.
+
 Deja el backend abierto en el puerto 8000 y ejecuta la tarea **Control360: Vite** si todavía necesitas iniciar React. Si es tu primera instalación del frontend, ejecuta `npm ci` en `frontend` antes de iniciar Vite. Abre `http://localhost:5173` e inicia sesión con los datos de la terminal de VS Code.
 
 Desde CMD, en la raíz del repositorio y con `.venv` activado, puedes iniciar la demo directamente:
@@ -37,7 +39,7 @@ Desde CMD, en la raíz del repositorio y con `.venv` activado, puedes iniciar la
 python scripts\iniciar_demo.py
 ```
 
-Usa `--mysql-port 3307` si ese es el puerto que confirmaste en tu equipo. Si ya tenías una base de demostración de una versión anterior y te faltan las contraseñas de vendedor y almacén, añade una vez `--reset-staff-passwords`. El parámetro cambia las contraseñas de esas dos cuentas en la base de demostración.
+Usa `--mysql-port 3307` si ese es el puerto que confirmaste en tu equipo. Si ya tenías una base de demostración de una versión anterior y te faltan las contraseñas de vendedor y almacén, añade una vez `--reset-staff-passwords`. El parámetro renueva las contraseñas de las dos cuentas de personal que usa el iniciador en la base de demostración.
 
 Si el puerto 8000 está ocupado por otro Django que iniciaste antes, detén ese proceso con `Ctrl+C` en su terminal.
 

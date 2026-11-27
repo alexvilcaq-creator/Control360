@@ -78,44 +78,14 @@ def prepare_native_mysql(config, port):
     demo_connection(config, port).close()
 
 
-def prepare_demo_accounts(config, reset_staff_passwords):
-    from django.db import transaction
-
-    from accounts.demo import DEMO_STAFF_NAMES
-    from accounts.models import User
-
-    saved_passwords = config.setdefault("staff_passwords", {})
-    saved_before = saved_passwords.copy()
-    credentials = {}
-    with transaction.atomic():
-        for role in User.Role.values:
-            username = f"demo_{role}"
-            account = User.objects.select_for_update().filter(username=username).first()
-            if role == User.Role.ADMIN:
-                password = config["admin_password"]
-            else:
-                password = saved_passwords.get(role)
-                if reset_staff_passwords or (account is None and not password):
-                    password = saved_passwords[role] = "Demo-" + secrets.token_urlsafe(12)
-            if account is None:
-                first_name, last_name = DEMO_STAFF_NAMES.get(role, ("", ""))
-                account = User.objects.create_user(
-                    username=username, role=role, password=password, first_name=first_name, last_name=last_name,
-                )
-            elif reset_staff_passwords and role != User.Role.ADMIN and account.role == role:
-                account.set_password(password)
-                account.save(update_fields=["password"])
-            if password and account.is_active and account.role == role and account.check_password(password):
-                credentials[username] = password
-        if saved_before != saved_passwords:
-            with NamedTemporaryFile(dir=CONFIG_DIR, mode="w", encoding="utf-8", delete=False) as file:
-                temp_path = Path(file.name)
-                json.dump(config, file)
-            try:
-                temp_path.replace(CONFIG_DIR / "native.json")
-            finally:
-                temp_path.unlink(missing_ok=True)
-    return credentials
+def save_config(config):
+    with NamedTemporaryFile(dir=CONFIG_DIR, mode="w", encoding="utf-8", delete=False) as file:
+        temp_path = Path(file.name)
+        json.dump(config, file)
+    try:
+        temp_path.replace(CONFIG_DIR / "native.json")
+    finally:
+        temp_path.unlink(missing_ok=True)
 
 
 def start_django(config, mysql_port, backend_port, reset_staff_passwords):
@@ -138,17 +108,20 @@ def start_django(config, mysql_port, backend_port, reset_staff_passwords):
     )
     django.setup()
 
+    from accounts.demo import prepare_demo_accounts
+
     call_command("migrate", interactive=False)
-    credentials = prepare_demo_accounts(config, reset_staff_passwords)
-    call_command("create_demo_data")
-    if "demo_admin" in credentials:
-        print(f"Usuario para la web: demo_admin\nContraseña de la demo: {credentials['demo_admin']}", flush=True)
-    else:
-        print("Usuario para la web: demo_admin. Usa la contraseña que configuraste para esa cuenta.", flush=True)
-    for username in ("demo_seller", "demo_warehouse"):
+    previous = json.dumps(config)
+    usernames, credentials = prepare_demo_accounts(config, reset_staff_passwords)
+    if previous != json.dumps(config):
+        save_config(config)
+    call_command("create_demo_data", **{f"{role}_user": name for role, name in usernames.items()})
+    admin = usernames["admin"]
+    print(f"Usuario para la web: {admin}\nContraseña de la demo: {credentials[admin]}", flush=True)
+    for username in (usernames["seller"], usernames["warehouse"]):
         if username in credentials:
             print(f"Cuenta de demostración: {username} · Contraseña: {credentials[username]}", flush=True)
-    if len(credentials.keys() & {"demo_seller", "demo_warehouse"}) < 2:
+    if len(credentials) < len(usernames):
         print("Para renovar las claves de las cuentas de personal de la demo usa --reset-staff-passwords.", flush=True)
     print(f"Iniciando Django en http://{HOST}:{backend_port}/", flush=True)
     call_command("runserver", f"{HOST}:{backend_port}", use_reloader=False)
