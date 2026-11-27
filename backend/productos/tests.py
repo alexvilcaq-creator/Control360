@@ -69,6 +69,19 @@ class CatalogTests(TestCase):
         with self.assertRaises(IntegrityError), transaction.atomic():
             Product.objects.create(**payload)
 
+    def test_product_can_be_created_without_location_and_assigned_later(self):
+        self.client.force_authenticate(self.admin)
+        payload = dict(self.payload)
+        payload.pop("location")
+        created = self.client.post(self.url, payload, format="json")
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertIsNone(created.data["location_label"])
+        path = f"{self.url}{created.data['id']}/"
+        self.assertEqual(self.client.patch(path, {"location": self.location.pk}, format="json").data["location_label"], "A / 03 / 2")
+        updated = self.client.patch(path, {"location": None}, format="json")
+        self.assertIsNone(updated.data["location"])
+        self.assertIsNone(updated.data["location_label"])
+
 
 class ConcurrentStockTests(TransactionTestCase):
     def test_only_one_withdrawal_can_spend_the_same_units(self):

@@ -25,7 +25,7 @@ Prefijo `/api/v1`. Las rutas usan barra final. Los listados tienen el formato pa
 | GET, POST | `/incidents/` | Almacén consulta sus reportes y administración consulta todos. Crea con `kind`, `product` y `description`. Filtros `search` y `status`. |
 | GET | `/incidents/{id}/` | Incluye historial de revisiones. |
 | POST | `/incidents/{id}/review/` | Administrador. Recibe `status=review` o `resolved` y `note`. |
-| GET | `/orders/{id}/` | Detalle con líneas, ubicaciones e historial, según alcance del usuario. |
+| GET | `/orders/{id}/` | Detalle con líneas e historial, según el rol. Cada línea incluye `location_detail` con el ID, zona, pasillo y estante actuales del producto, o `null` si aún carece de ubicación. |
 | POST | `/orders/{id}/transition/` | Acciones `accept`, `assign`, `prepare`, `ready`, `deliver` o `cancel`. Asignación requiere `worker_id` y cancelación requiere `note`. |
 | GET, POST | `/workers/`, `/shifts/` | Catálogos administrativos con `search`. |
 | GET, PUT, PATCH, DELETE | `/workers/{id}/`, `/shifts/{id}/` | Administra los registros respetando las referencias y el historial. El turno asociado permanece fijo. |
@@ -49,3 +49,5 @@ El cliente transmite la cookie de sesión con `credentials: include` y el token 
 Códigos de respuesta habituales: 200 para consultas y cambios, 201 para altas, 204 para operaciones sin contenido, 400 para datos inválidos, 401 para sesión ausente, 403 para permisos o CSRF, 404 para recursos inexistentes o fuera de alcance y 409 para conflictos de inventario, relaciones o estado. El manejador de la API registra errores inesperados en el backend y devuelve 500 con un mensaje general.
 
 Los métodos de cobro son `cash`, `card`, `yape` y `plin`. El importe y el cambio se calculan en Django. En checkout la validación de cobro y stock comparte una transacción. Para una marcación se conserva `requested_at` al solicitar y se agrega `decided_at` al revisar. La asistencia confirmada queda enlazada mediante `attendance`.
+
+En `/products/` y `/products/{id}/`, el campo `location` admite `null` para productos pendientes de ubicar. El campo `location_label` devuelve `null` en ese caso.

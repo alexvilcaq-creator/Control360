@@ -15,8 +15,8 @@ export function usePolling(load, delay = 15000) {
       })
     }
     refresh()
-    const timer = setInterval(refresh, delay)
-    window.addEventListener('control360:notifications', refresh)
+    const timer = delay ? setInterval(refresh, delay) : undefined
+    if (delay) window.addEventListener('control360:notifications', refresh)
     return () => {
       clearInterval(timer)
       window.removeEventListener('control360:notifications', refresh)

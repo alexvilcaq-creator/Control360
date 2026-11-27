@@ -22,6 +22,10 @@ ACTION_LABELS = {
     "deliver": "Confirmar entrega", "cancel": "Cancelar pedido",
 }
 CODES = {Status.PREPARING: "prepare", Status.READY: "ready", Status.DELIVERED: "deliver"}
+ORDER_NOTICE = {
+    "assign": ("order_assigned", "Se asignó el pedido {code} a {worker}."),
+    "ready": ("order_ready", "El pedido {code} está listo para entregar."),
+}
 TRANSITION_ROLES = {
     "accept": {"warehouse"}, "assign": {"admin"}, "prepare": {"admin", "warehouse"},
     "ready": {"admin", "warehouse"}, "deliver": {"admin", "seller"}, "cancel": {"admin", "seller"},
@@ -97,7 +101,7 @@ def _create_order(customer, quantities, actor, request_key):
                                quantity=quantity, unit_price=product.price))
     OrderItem.objects.bulk_create(lines)
     OrderEvent.objects.create(order=order, actor=actor, status=Status.PENDING)
-    notify("new_order", f"El pedido #{order.pk} está pendiente de preparación.",
+    notify("new_order", f"El pedido PED-{order.pk:04d} está pendiente de preparación.",
            roles=["admin", "warehouse"], order=order)
     return order
 
@@ -136,9 +140,11 @@ def change_order(*, order_id, action, actor, worker_id=None, note=""):
         order.status = NEXT_STATUS[previous]
     order.save(update_fields=["status", "assignee", "updated_at"])
     OrderEvent.objects.create(order=order, actor=actor, previous=previous, status=order.status, note=note)
+    code = f"PED-{order.pk:04d}"
+    kind, message = ORDER_NOTICE.get(action, (f"order_{order.status}", f"Pedido {code} · {order.get_status_display()}."))
     notify(
-        f"order_{order.status}",
-        f"Pedido #{order.pk} · {order.get_status_display()}.",
+        kind,
+        message.format(code=code, worker=order.assignee),
         roles=["admin"], user_ids=[order.seller_id, order.assignee.user_id if order.assignee_id else None],
         order=order,
     )

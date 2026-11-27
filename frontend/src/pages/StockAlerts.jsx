@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { AlertTriangle, Boxes, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import ProductPhoto from '../components/ProductPhoto';
+import ProductIcon from '../components/ProductIcon';
 import { DataTable, ErrorNotice, Loading, PageTitle, Section, Tag, TextLink } from '../components/UI';
 import { useAuth } from '../context/Auth';
 import { catalog } from '../api/catalog';
@@ -28,11 +28,12 @@ export default function StockAlerts() {
         <option value="">Todas las alertas</option><option value="agotado">Crítica · Agotado</option><option value="bajo">Alta · Stock bajo</option>
       </select></div>
       {stock.loading && !stock.data ? <Loading /> : <DataTable rows={rows} empty="No hay alertas para esta selección." columns={[
-        { key: 'name', label: 'Producto', render: (item) => <div className="entity-cell"><ProductPhoto product={item} /><div><strong>{item.name}</strong><small>{item.sku}</small></div></div> },
+        { key: 'name', label: 'Producto', render: (item) => <div className="entity-cell"><ProductIcon/><div><strong>{item.name}</strong><small>{item.sku}</small></div></div> },
         { key: 'quantity', label: 'Disponible', align: 'right', render: (item) => `${item.stock} u.` },
         { key: 'minStock', label: 'Mínimo', align: 'right', render: (item) => `${item.minimum_stock} u.` },
-        { key: 'location', label: 'Ubicación', render: (item) => <Link className="location-text table-link" to={`/almacen?ubicacion=${item.location}`}>
-          <MapPin size={15} /> {item.location_label}</Link> },
+        { key: 'location', label: 'Ubicación', render: (item) => item.location
+          ? <Link className="location-text table-link" to={`/almacen?producto=${item.id}`}><MapPin size={15} /> {item.location_label}</Link>
+          : 'Sin ubicación asignada' },
         { key: 'priority', label: 'Prioridad', render: (item) => <Tag tone={item.stock === 0 ? 'red' : 'amber'} dot>
           {item.stock === 0 ? 'Crítica · Agotado' : 'Alta · Stock bajo'}
         </Tag> },

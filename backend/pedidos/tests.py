@@ -133,6 +133,9 @@ class OrderAPITests(TestCase):
         pk = created.data["id"]
         self.assertEqual(created.data["total"], "434.00")
         self.assertEqual(created.data["items"][0]["location"], "B / 4 / 2")
+        self.assertEqual(created.data["items"][0]["location_detail"], {
+            "id": self.first.location_id, "zone": "B", "aisle": "4", "shelf": "2", "label": "B / 4 / 2",
+        })
         self.assertEqual(Product.objects.get(pk=self.first.pk).stock, 2)
         self.assertTrue(Notification.objects.filter(recipient=self.admin, kind="low_stock").exists())
         self.assertTrue(Notification.objects.filter(recipient=self.worker.user, kind="new_order", order_id=pk).exists())
@@ -149,6 +152,9 @@ class OrderAPITests(TestCase):
         self.assertEqual(self.transition(pk, "accept").status_code, 409)
         self.assertEqual(self.transition(pk, "prepare").status_code, 200)
         self.assertEqual(self.transition(pk, "ready").status_code, 200)
+        self.assertTrue(Notification.objects.filter(
+            recipient=self.seller, kind="order_ready", order_id=pk, message__contains="listo para entregar",
+        ).exists())
         self.assertEqual(self.transition(pk, "deliver").status_code, 403)
         self.client.force_authenticate(self.seller)
         result = self.transition(pk, "deliver")
@@ -213,11 +219,31 @@ class OrderAPITests(TestCase):
         created = self.create_order()
         self.client.force_authenticate(self.admin)
         self.assertEqual(self.transition(created.data["id"], "assign", worker_id=self.worker.pk).status_code, 200)
+        self.assertTrue(Notification.objects.filter(
+            recipient=self.worker.user, kind="order_assigned", order_id=created.data["id"],
+        ).exists())
         self.first.is_active = False
         self.first.save(update_fields=["is_active"])
         self.client.force_authenticate(self.seller)
         self.assertEqual(self.create_order(quantity=1).status_code, 409)
         self.assertEqual(self.client.get(f"/api/v1/products/{self.first.pk}/").status_code, 404)
+
+    def test_order_detail_reads_current_location_and_allows_an_unlocated_product(self):
+        self.second.location = None
+        self.second.save(update_fields=["location"])
+        created = self.create_order()
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertIsNone(created.data["items"][1]["location_detail"])
+        self.assertIsNone(created.data["items"][1]["location"])
+
+        self.client.force_authenticate(self.admin)
+        shelf = Location.objects.create(zone="A", aisle="2", shelf="4")
+        moved = self.client.patch(f"/api/v1/products/{self.first.pk}/", {"location": shelf.pk}, format="json")
+        self.assertEqual(moved.status_code, 200)
+        self.client.force_authenticate(self.worker.user)
+        detail = self.client.get(f"{self.path}{created.data['id']}/")
+        self.assertEqual(detail.data["items"][0]["location_detail"]["id"], shelf.pk)
+        self.assertIsNone(detail.data["items"][1]["location_detail"])
 
 
 class OrderConcurrencyTests(TransactionTestCase):

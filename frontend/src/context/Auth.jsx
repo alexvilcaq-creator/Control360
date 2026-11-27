@@ -2,6 +2,14 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { request } from '../api/client'
 
 const AuthContext = createContext(null)
+const roles = new Set(['admin', 'seller', 'warehouse'])
+
+function sessionUser(user) {
+  if (!user?.id || !user.username || !roles.has(user.role)) {
+    throw new Error('La API no devolvió una sesión válida.')
+  }
+  return user
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -12,7 +20,7 @@ export function AuthProvider({ children }) {
     const end = () => setUser(null)
     window.addEventListener('control360:session-ended', end)
     request('/auth/me/', { signal: controller.signal })
-      .then(setUser)
+      .then(user => { if (!controller.signal.aborted) setUser(sessionUser(user)) })
       .catch(error => {
         if (error.name !== 'AbortError' && error.status !== 401) setError(error.message)
       })
@@ -27,7 +35,7 @@ export function AuthProvider({ children }) {
     await request('/auth/csrf/')
     const data = await request('/auth/login/', { method: 'POST', body: credentials })
     setError('')
-    setUser(data.user)
+    setUser(sessionUser(data?.user))
   }
 
   async function logout() {

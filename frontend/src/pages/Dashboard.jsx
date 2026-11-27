@@ -10,7 +10,7 @@ import { businessDateLabel, money, query } from '../api/operations'
 import { OrderDistribution, OrderTrend } from '../components/Charts'
 import Metric from '../components/DashboardMetric'
 import PersonalAttendance from '../components/PersonalAttendance'
-import ProductPhoto from '../components/ProductPhoto'
+import ProductIcon from '../components/ProductIcon'
 import { BarPanel } from '../components/ReferenceCharts'
 import OrderTable from '../components/ReferenceOrderTable'
 import { Empty, ErrorNotice, Loading, PageTitle, Section, Tag, TextLink } from '../components/UI'
@@ -90,7 +90,7 @@ function AdminDashboard() {
         <Section title="Alertas de bajo stock" icon={AlertTriangle} className="alerts-panel" action={<TextLink to="/inventario?stock=low">Ver inventario</TextLink>}>
           {data.alerts.length ? <div className="alert-list">{data.alerts.slice(0, 3).map(product =>
             <Link to={`/inventario?q=${encodeURIComponent(product.sku)}`} className="stock-alert" key={product.sku}>
-              <ProductPhoto product={product}/><span className="stock-product"><strong>{product.name}</strong>
+              <ProductIcon/><span className="stock-product"><strong>{product.name}</strong>
                 <small>{product.category__name} · Mín. {product.minimum_stock}</small></span>
               <Tag tone="red">{product.stock} u.</Tag><ArrowRight size={15} className="stock-arrow"/>
             </Link>)}</div> : <Empty>No hay productos en el mínimo o por debajo.</Empty>}
@@ -158,7 +158,7 @@ function SellerDashboard({ dashboard, attendance }) {
             <ErrorNotice message={products.error}/>
             {products.loading ? <Loading/> : products.data?.results.length ? <div className="map-products">
               {products.data.results.slice(0, 3).map(product => <Link key={product.id} to={`/inventario?q=${encodeURIComponent(product.sku)}`}>
-                <ProductPhoto product={product}/><div><strong>{product.name}</strong><small>{product.sku} · {money.format(product.price)}</small></div>
+                <ProductIcon/><div><strong>{product.name}</strong><small>{product.sku} · {money.format(product.price)}</small></div>
                 <Tag tone="green">{product.stock} u.</Tag>
               </Link>)}
             </div> : <Empty>No hay productos con existencias.</Empty>}

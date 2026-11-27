@@ -24,13 +24,16 @@ class ProductSerializer(serializers.ModelSerializer):
     is_active = serializers.BooleanField(default=True)
     price = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0"))
     category_name = serializers.CharField(source="category.name", read_only=True)
-    location_label = serializers.CharField(source="location.__str__", read_only=True)
+    location_label = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
         fields = ["id", "sku", "barcode", "name", "description", "category", "category_name",
                   "location", "location_label", "price", "stock", "minimum_stock", "is_active", "updated_at"]
         read_only_fields = ["stock", "updated_at"]
+
+    def get_location_label(self, product):
+        return str(product.location) if product.location_id else None
 
     def validate_barcode(self, value):
         if not value:

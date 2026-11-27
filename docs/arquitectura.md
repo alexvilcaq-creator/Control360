@@ -47,7 +47,7 @@ erDiagram
   INCIDENT ||--o{ INCIDENT_EVENT : "se revisa"
   PRODUCT o|--o{ NOTIFICATION : "origina alerta"
   CATEGORY ||--o{ PRODUCT : "clasifica"
-  LOCATION ||--o{ PRODUCT : "ubica"
+  LOCATION o|--o{ PRODUCT : "ubica"
   WORKER ||--o{ SCHEDULE : "recibe"
   SHIFT ||--o{ SCHEDULE : "define"
   SCHEDULE ||--o{ ATTENDANCE : "rige"

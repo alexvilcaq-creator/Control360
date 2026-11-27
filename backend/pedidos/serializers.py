@@ -5,6 +5,7 @@ from rest_framework import serializers
 
 from clientes.models import Customer
 from accounts.permissions import role_for
+from productos.serializers import LocationSerializer
 from .models import Order, OrderEvent, OrderItem, Payment
 from .services import ACTION_LABELS, actions_for, place_order
 
@@ -42,11 +43,15 @@ class TransitionInput(serializers.Serializer):
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
-    location = serializers.CharField(source="product.location.__str__", read_only=True)
+    location = serializers.SerializerMethodField()
+    location_detail = LocationSerializer(source="product.location", read_only=True, allow_null=True)
 
     class Meta:
         model = OrderItem
-        fields = ["product", "sku", "name", "quantity", "unit_price", "location"]
+        fields = ["product", "sku", "name", "quantity", "unit_price", "location", "location_detail"]
+
+    def get_location(self, item):
+        return str(item.product.location) if item.product.location_id else None
 
 
 class EventSerializer(serializers.ModelSerializer):

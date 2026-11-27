@@ -88,7 +88,7 @@ def save_config(config):
         temp_path.unlink(missing_ok=True)
 
 
-def start_django(config, mysql_port, backend_port, reset_staff_passwords):
+def start_django(config, mysql_port, backend_port, reset_staff_passwords, seed_demo):
     import django
     from django.core.management import call_command
 
@@ -115,7 +115,8 @@ def start_django(config, mysql_port, backend_port, reset_staff_passwords):
     usernames, credentials = prepare_demo_accounts(config, reset_staff_passwords)
     if previous != json.dumps(config):
         save_config(config)
-    call_command("create_demo_data", **{f"{role}_user": name for role, name in usernames.items()})
+    if seed_demo:
+        call_command("create_demo_data", **{f"{role}_user": name for role, name in usernames.items()})
     admin = usernames["admin"]
     print(f"Usuario para la web: {admin}\nContraseña de la demo: {credentials[admin]}", flush=True)
     for username in (usernames["seller"], usernames["warehouse"]):
@@ -135,6 +136,8 @@ def main():
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--reset-staff-passwords", action="store_true",
                         help="Renueva las claves de demo_seller y demo_warehouse en la base de demostración.")
+    parser.add_argument("--seed-demo", action="store_true",
+                        help="Carga explícitamente los productos, ubicaciones y trabajadores ficticios.")
     args = parser.parse_args()
     config = load_config()
 
@@ -150,7 +153,7 @@ def main():
         else:
             print(f"No se pudo preparar MySQL: {error}", file=sys.stderr)
         return 1
-    start_django(config, args.mysql_port, args.port, args.reset_staff_passwords)
+    start_django(config, args.mysql_port, args.port, args.reset_staff_passwords, args.seed_demo)
     return 0
 
 

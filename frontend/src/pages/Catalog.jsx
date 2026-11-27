@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Boxes, Clock3, Pencil, Plus, Search, SlidersHorizontal, Trash2 } from 'lucide-react'
-import ProductPhoto from '../components/ProductPhoto'
+import ProductIcon from '../components/ProductIcon'
 import { catalog } from '../api/catalog'
 import { money } from '../api/operations'
 import { useAuth } from '../context/Auth'
@@ -45,8 +45,8 @@ function EditForm({ config, item, options, onSubmit }) {
       return <div className="field" key={name}><label htmlFor={`catalog-${name}`}>{label}</label>
         {name === 'is_active' ? <select id={`catalog-${name}`} name={name} defaultValue={String(defaultValue)}>
           <option value="true">Activo</option><option value="false">Desactivado</option>
-        </select> : related ? <select id={`catalog-${name}`} name={name} defaultValue={defaultValue} required>
-          <option value="">Seleccionar</option>
+        </select> : related ? <select id={`catalog-${name}`} name={name} defaultValue={defaultValue} required={name === 'category'}>
+          <option value="">{name === 'location' ? 'Sin ubicación asignada' : 'Seleccionar'}</option>
           <Options values={options?.[name]} labelKey={name === 'category' ? 'name' : 'label'} />
         </select> : name === 'description' ? <textarea id={`catalog-${name}`} name={name} defaultValue={defaultValue} rows={3} />
           : <input id={`catalog-${name}`} name={name} defaultValue={defaultValue} required={name !== 'barcode'} {...attributes} />}
@@ -117,6 +117,7 @@ export default function Catalog({ resource }) {
       } else if (modal.type === 'adjust') {
         await catalog.adjust(modal.item.id, body)
       } else {
+        if (products && body.location === '') body.location = null
         await catalog.save(resource, modal.item?.id, body)
         setPage(1)
       }
@@ -164,11 +165,11 @@ export default function Catalog({ resource }) {
           {(admin || products) && <th>Acciones</th>}
         </tr></thead>
         <tbody>{data.results.map(item => <tr key={item.id}>
-          {products ? <><td><div className="entity-cell"><ProductPhoto product={item}/><div><strong>{item.name}</strong>
+          {products ? <><td><div className="entity-cell"><ProductIcon/><div><strong>{item.name}</strong>
               <small>{item.sku}{item.barcode && ` · ${item.barcode}`}</small>
               {item.description && <small>{item.description}</small>}</div></div></td>
-            <td>{item.category_name}</td><td>{user.role === 'seller' ? item.location_label :
-              <Link className="table-link" to={`/almacen?ubicacion=${item.location}`}>{item.location_label}</Link>}</td><td>{money.format(item.price)}</td>
+            <td>{item.category_name}</td><td>{!item.location ? 'Sin ubicación asignada' : user.role === 'seller' ? item.location_label :
+              <Link className="table-link" to={`/almacen?producto=${item.id}`}>{item.location_label}</Link>}</td><td>{money.format(item.price)}</td>
             <td><Tag tone={!item.is_active ? 'muted' : item.stock <= item.minimum_stock ? 'red' : 'green'}>{item.stock} u.</Tag><small>Mínimo {item.minimum_stock}</small></td>
             <td><Tag tone={item.is_active ? 'green' : 'muted'} dot>{item.is_active ? 'Activo' : 'Inactivo'}</Tag></td></>
             : config.fields.map(([name]) => <td key={name}>{item[name]}</td>)}
@@ -190,8 +191,8 @@ export default function Catalog({ resource }) {
         {modal.type === 'history' && <StockHistory item={modal.item} />}
         {modal.type === 'edit' && <>
           {products && options.loading && <Loading />}
-          {products && !options.loading && (!options.data?.category.length || !options.data?.location.length)
-            && <Notice>Crea una categoría y una ubicación antes de guardar el producto.</Notice>}
+          {products && options.data && !options.data.category.length
+            && <Notice>Crea una categoría antes de guardar el producto.</Notice>}
           {(!products || options.data) && <EditForm config={config} item={modal.item} options={options.data} onSubmit={submit} />}
         </>}
         {modal.type === 'adjust' && <form id="catalog-form" onSubmit={submit} className="form-grid">

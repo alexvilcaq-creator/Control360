@@ -1,6 +1,7 @@
 from django.contrib.auth import authenticate, login as session_login, logout as session_logout
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
+from django.views.decorators.cache import never_cache
 from rest_framework import filters, mixins, serializers, viewsets
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
@@ -31,12 +32,14 @@ class LoginThrottle(AnonRateThrottle):
     scope = "login"
 
 
+@never_cache
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def csrf(request):
-    return Response({"csrfToken": get_token(request)}, headers={"Cache-Control": "no-store"})
+    return Response({"csrfToken": get_token(request)})
 
 
+@never_cache
 @api_view(["POST"])
 @permission_classes([AllowAny])
 @throttle_classes([LoginThrottle])
@@ -48,15 +51,16 @@ def login(request):
     if user is None:
         return Response({"detail": "Usuario, correo o contraseña incorrectos."}, status=401)
     session_login(request, user)
-    return Response({"user": user_data(user), "csrfToken": get_token(request)},
-                    headers={"Cache-Control": "no-store"})
+    return Response({"user": user_data(user), "csrfToken": get_token(request)})
 
 
+@never_cache
 @api_view(["GET"])
 def me(request):
-    return Response(user_data(request.user), headers={"Cache-Control": "no-store"})
+    return Response(user_data(request.user))
 
 
+@never_cache
 @api_view(["POST"])
 def logout(request):
     session_logout(request)

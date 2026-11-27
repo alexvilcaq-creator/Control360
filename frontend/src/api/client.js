@@ -1,5 +1,6 @@
 const base = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '')
 let csrfToken
+let sessionVersion = 0
 
 function errorMessages(payload) {
   return Object.values(payload).flatMap(value =>
@@ -20,6 +21,7 @@ export class ApiError extends Error {
 }
 
 export async function request(path, { method = 'GET', body, signal, download = false } = {}) {
+  const version = sessionVersion
   const headers = { Accept: 'application/json' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
@@ -37,13 +39,18 @@ export async function request(path, { method = 'GET', body, signal, download = f
   const payload = response.headers.get('Content-Type')?.includes('application/json')
     ? await response.json() : null
   if (!response.ok) {
-    if (response.status === 401 && path !== '/auth/login/') {
+    if (response.status === 401 && path !== '/auth/login/' && version === sessionVersion && !signal?.aborted) {
+      sessionVersion++
       csrfToken = undefined
       window.dispatchEvent(new Event('control360:session-ended'))
     }
     throw new ApiError(response.status, payload)
   }
-  if (payload?.csrfToken) csrfToken = payload.csrfToken
-  if (path === '/auth/logout/') csrfToken = undefined
+  if (path === '/auth/login/' || path === '/auth/logout/') {
+    sessionVersion++
+    csrfToken = payload?.csrfToken
+  } else if (version === sessionVersion && payload?.csrfToken) {
+    csrfToken = payload.csrfToken
+  }
   return payload
 }

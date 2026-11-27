@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ArrowRight, Boxes, CalendarCheck, Eye, EyeOff, LockKeyhole, UserRound } from 'lucide-react'
 import { Link, Navigate } from 'react-router-dom'
-import { Brand, Button, ErrorNotice, Field } from '../components/UI'
+import { Brand, Button, ErrorNotice, Field, Loading } from '../components/UI'
 import { ThemeButton } from '../components/Layout'
 import { useAuth } from '../context/Auth'
 
@@ -35,7 +35,7 @@ export function Welcome() {
 }
 
 export function Login() {
-  const { user, login, error: sessionError } = useAuth()
+  const { user, loading, login, error: sessionError } = useAuth()
   const [busy, setBusy] = useState(false)
   const [visible, setVisible] = useState(false)
   const [error, setError] = useState('')
@@ -55,7 +55,7 @@ export function Login() {
     <LoginSide/>
     <section className="login-main">
       <div className="login-theme"><ThemeButton/></div>
-      <div className="login-form">
+      {loading ? <Loading/> : <div className="login-form">
         <span className="login-lock"><LockKeyhole size={24}/></span>
         <h2>Inicia sesión</h2>
         <p>Ingresa tus credenciales para acceder a Control360.</p>
@@ -76,7 +76,7 @@ export function Login() {
           </Field>
           <Button type="submit" icon={ArrowRight} disabled={busy}>{busy ? 'Ingresando…' : 'Ingresar al panel'}</Button>
         </form>
-      </div>
+      </div>}
     </section>
   </main>
 }

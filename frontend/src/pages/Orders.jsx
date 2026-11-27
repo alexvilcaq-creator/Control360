@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
-import { Columns3, List, Plus, Search, ShoppingCart, Trash2 } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { Columns3, List, MapPin, Plus, Search, ShoppingCart, Trash2 } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { request } from '../api/client'
 import { catalog } from '../api/catalog'
 import { dateLabel, money, orderActions, orderCode, orderStatus, post } from '../api/operations'
@@ -9,6 +9,7 @@ import { PaymentFields, paymentBody, paymentMethods, paymentStates } from '../co
 import ReferenceOrderTable from '../components/ReferenceOrderTable'
 import { Empty, Loading, Modal, Notice, PageHeading, Pagination, Section, Status, TextLink, Toast } from '../components/UI'
 import { useAuth } from '../context/Auth'
+import { usePolling } from '../hooks/usePolling'
 import { useQuery } from '../hooks/useQuery'
 
 function NewOrder({ onClose, onSaved }) {
@@ -80,9 +81,15 @@ function NewOrder({ onClose, onSaved }) {
 const loadCustomers = signal => catalog.options('customers', signal)
 const loadWorkers = signal => catalog.options('workers', signal)
 const noWorkers = async () => []
+const warehouseActions = {
+  accept: 'Aceptar pedido',
+  prepare: 'Iniciar preparación',
+  ready: 'Marcar pedido como listo',
+}
 
 function OrderDetail({ id, onClose, onChanged }) {
   const { user } = useAuth()
+  const warehouse = user.role === 'warehouse'
   const [showPayment, setShowPayment] = useState(false)
   const [version, setVersion] = useState(0)
   const [choice, setChoice] = useState('')
@@ -92,14 +99,12 @@ function OrderDetail({ id, onClose, onChanged }) {
   const { data, loading, error: readError } = useQuery(load)
   const workers = useQuery(choice === 'assign' ? loadWorkers : noWorkers)
 
-  async function transition(event) {
-    event.preventDefault()
-    if (!data?.actions.includes(choice)) return
+  async function transition(action, fields = {}) {
+    if (busy || !data?.actions.includes(action)) return
     setBusy(true)
     setError('')
-    const fields = Object.fromEntries(new FormData(event.currentTarget))
     try {
-      await post(`/orders/${id}/transition/`, { action: choice, ...fields })
+      await post(`/orders/${id}/transition/`, { action, ...fields })
       setChoice('')
       setVersion(value => value + 1)
       onChanged('Estado actualizado.')
@@ -136,11 +141,27 @@ function OrderDetail({ id, onClose, onChanged }) {
           <p className="muted">{data.assignee_name ? `Asignado a ${data.assignee_name}` : 'Sin asignar'}</p></div>
           <Status status={data.status}>{orderStatus[data.status]}</Status></div>
         <OrderProgress status={data.status}/>
-        {data.items.map(item => <div className="movement" key={item.product}>
-          <div><strong>{item.name}</strong><small>{item.sku} · {item.location}</small></div>
-          <div><strong>{item.quantity} × {money.format(item.unit_price)}</strong></div>
-        </div>)}
-        <strong className="order-total">Total {money.format(data.total)}</strong>
+        {warehouse && data.actions.length > 0 && <div className="heading-actions" aria-label="Preparación del pedido">
+          {data.actions.map(action => <button key={action} type="button" className="button primary" disabled={busy}
+            onClick={() => transition(action)}>{warehouseActions[action]}</button>)}
+        </div>}
+        <h2>Productos solicitados</h2>
+        {data.items.map(item => <article className="movement order-product" key={item.product}>
+          <div><strong>{item.name}</strong><small>{item.sku}</small>
+            {item.location_detail ? <ul className="order-location">
+              <li>Zona <strong>{item.location_detail.zone}</strong></li>
+              <li>Pasillo <strong>{item.location_detail.aisle}</strong></li>
+              <li>Estante <strong>{item.location_detail.shelf}</strong></li>
+            </ul> : <p className="order-location-warning">Sin ubicación asignada</p>}
+          </div>
+          <div className="order-product-actions">
+            <strong>Cantidad: {item.quantity}</strong>
+            {item.location_detail && user.role !== 'seller' && <Link className="button button--outline"
+              aria-label={`Ver ubicación de ${item.name}`} to={`/almacen?producto=${item.product}&pedido=${id}`}><MapPin size={16}/> Ver ubicación</Link>}
+            {!warehouse && <small>{money.format(item.unit_price)} / unidad</small>}
+          </div>
+        </article>)}
+        {!warehouse && <strong className="order-total">Total {money.format(data.total)}</strong>}
         {data.payment && <div className="detail-summary"><strong>{data.payment.number} · {paymentMethods[data.payment.method]}</strong>
           <Status status={data.payment.status === 'paid' ? 'ready' : 'cancelled'}>{paymentStates[data.payment.status]}</Status></div>}
         {user.role !== 'warehouse' && !data.payment && data.status !== 'cancelled' && <>
@@ -151,7 +172,10 @@ function OrderDetail({ id, onClose, onChanged }) {
             <button className="button primary" disabled={busy}>{busy ? 'Guardando…' : 'Confirmar cobro'}</button>
           </form>}
         </>}
-        {data.actions.length > 0 && <form onSubmit={transition} className="stack">
+        {!warehouse && data.actions.length > 0 && <form onSubmit={event => {
+          event.preventDefault()
+          transition(choice, Object.fromEntries(new FormData(event.currentTarget)))
+        }} className="stack">
           <div className="heading-actions">
             {data.actions.map(action => <button key={action} type="button" disabled={busy}
               className={`button ${choice === action ? 'primary' : 'secondary'}`}
@@ -174,11 +198,11 @@ function OrderDetail({ id, onClose, onChanged }) {
   </Modal>
 }
 
-function OrderList({ status = '', search, mine, version, onOpen, board, filters }) {
+function OrderList({ status = '', search, mine, version, onOpen, board, filters, live }) {
   const [page, setPage] = useState(1)
   const load = useCallback(signal => catalog.list('orders', { status, search, page, mine }, signal),
     [status, search, page, mine, version])
-  const { data, loading, error } = useQuery(load)
+  const { data, loading, error } = usePolling(load, live ? 15000 : 0)
   const display = <>
     <Notice>{error}</Notice>
     {loading && <Loading />}
@@ -201,6 +225,7 @@ function OrderList({ status = '', search, mine, version, onOpen, board, filters 
 
 export default function Orders() {
   const { user } = useAuth()
+  const live = user.role === 'warehouse'
   const [params, setParams] = useSearchParams()
   const [board, setBoard] = useState(false)
   const [search, setSearch] = useState('')
@@ -239,8 +264,8 @@ export default function Orders() {
         {board ? <List size={17}/> : <Columns3 size={17}/>} {board ? 'Ver lista' : 'Ver tablero'}</button>
     </div>
     {board ? <div className="kanban" aria-label="Tablero Kanban" tabIndex={0}>
-      {Object.keys(orderStatus).map(status => <OrderList key={status + listKey} {...{ status, search, mine, version }} onOpen={open} board />)}
-    </div> : <OrderList key={listKey} {...{ status, search, mine, version }} filters={params} />}
+      {Object.keys(orderStatus).map(status => <OrderList key={status + listKey} {...{ status, search, mine, version, live }} onOpen={open} board />)}
+    </div> : <OrderList key={listKey} {...{ status, search, mine, version, live }} filters={params} />}
     {creating && <NewOrder onClose={() => setCreating(false)} onSaved={message => { setCreating(false); onChanged(message) }} />}
     {params.get('pedido') && <OrderDetail key={params.get('pedido')} id={params.get('pedido')} onClose={close} onChanged={onChanged} />}
     <Toast onClose={closeToast}>{toast}</Toast>

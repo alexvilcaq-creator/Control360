@@ -17,7 +17,9 @@ class SessionTests(TestCase):
     def test_session_requires_csrf_and_returns_the_persisted_role(self):
         url = "/api/v1/auth/"
         credentials = {"username": self.user.username, "password": self.password, "role": "admin"}
-        self.assertEqual(self.client.get(url + "me/").status_code, 401)
+        anonymous = self.client.get(url + "me/")
+        self.assertEqual(anonymous.status_code, 401)
+        self.assertIn("no-store", anonymous["Cache-Control"])
         self.assertEqual(self.client.post(url + "login/", credentials).status_code, 403)
         token = self.client.get(url + "csrf/").data["csrfToken"]
         headers = {"HTTP_X_CSRFTOKEN": token, "HTTP_ORIGIN": "http://localhost:5173"}
@@ -27,7 +29,9 @@ class SessionTests(TestCase):
         self.assertEqual(auth.status_code, 200)
         self.assertEqual(auth.data["user"]["role"], "warehouse")
         self.assertNotEqual(self.user.password, self.password)
-        self.assertEqual(self.client.get(url + "me/").data["id"], self.user.pk)
+        session = self.client.get(url + "me/")
+        self.assertEqual(session.data["id"], self.user.pk)
+        self.assertIn("no-store", session["Cache-Control"])
         self.assertEqual(self.client.post(url + "logout/", **headers).status_code, 403)
         headers["HTTP_X_CSRFTOKEN"] = auth.data["csrfToken"]
         self.assertEqual(self.client.post(url + "logout/", **headers).status_code, 204)

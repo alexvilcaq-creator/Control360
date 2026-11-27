@@ -41,6 +41,8 @@ const navigation = [
 const settings = { to: '/configuracion', icon: Settings, label: 'Configuración' }
 const titles = {
   new_order: 'Nuevo pedido', low_stock: 'Alerta de stock', attendance_requested: 'Asistencia por revisar',
+  order_assigned: 'Pedido asignado', order_accepted: 'Pedido aceptado', order_preparing: 'En preparación',
+  order_ready: 'Pedido listo para entregar', order_delivered: 'Pedido entregado', order_cancelled: 'Pedido cancelado',
   attendance_approved: 'Asistencia aprobada', attendance_rejected: 'Solicitud rechazada',
   attendance_corrected: 'Asistencia corregida', incident_reported: 'Nueva incidencia', incident_reviewed: 'Incidencia actualizada',
 }

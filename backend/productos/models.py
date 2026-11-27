@@ -28,7 +28,7 @@ class Product(models.Model):
     name = models.CharField(max_length=160)
     description = models.TextField(blank=True)
     category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="products")
-    location = models.ForeignKey(Location, on_delete=models.PROTECT, related_name="products")
+    location = models.ForeignKey(Location, on_delete=models.PROTECT, related_name="products", null=True, blank=True)
     price = models.DecimalField(max_digits=12, decimal_places=2)
     stock = models.PositiveIntegerField(default=0, editable=False)
     minimum_stock = models.PositiveIntegerField(default=0)
